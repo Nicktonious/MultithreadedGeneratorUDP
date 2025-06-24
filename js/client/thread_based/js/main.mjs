@@ -22,6 +22,7 @@ const args = minimist(process.argv.slice(2), {
         m: 'mode'
     },
     default: {
+        numThreads: 1,
         portBase: DEFAULT_PORT_BASE,
         packetSize: DEFAULT_PACKET_SIZE_KB,
         sockets: 1,
@@ -30,6 +31,7 @@ const args = minimist(process.argv.slice(2), {
     }
 });
 
+const numThreads = parseInt(args.threads);
 const serverAddress = args.server;
 const numSockets = parseInt(args.sockets);
 const portBase = parseInt(args.portBase);
@@ -69,8 +71,7 @@ if (mode == DEFAULT_MODE) {
     process.on('SIGINT', () => {
         sender.StartGracefulShutDown();
     });
-    sender.Run({ targetSpeed, isMaxSpeed });
-
+    sender.Run({ targetSpeed: packetsPerSec, isMaxSpeed });
 
 } else if (mode == MODE_MULTITHREAD) {
     const workers = [];

@@ -5,7 +5,7 @@ const TOTAL_BUFFER_SIZE = 1_073_741_824; // 1GB in bytes
 const propotion = (x, in_min, in_max, out_min, out_max) => {
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
-const wait = (ms=0) => new Promise((res, rej) => setTimeout(res, ms));
+const wait = (ms=0) => new Promise((res, rej) => setImmediate(res));
 
 class Sender {
     clients = null;
@@ -120,18 +120,21 @@ class Sender {
     }
     async RunFixedSpeed({ targetSpeed }) {
         this.sent = Array(this.clients.length).fill(0);
-        const period = 200;
+        const period = 100;
         for (let i = 0; i < this.clients.length; i++) {
             if (this.stopFlag) break;
             let t1 = performance.now();
-            let packetsToSend = targetSpeed / this.clients.length;
-            while (packetsToSend-- > 0 && !this.stopFlag && performance.now() - t1 < period) {
+            let packetsToSend = Math.ceil(targetSpeed / this.clients.length * period / 1000);
+            while ((performance.now() - t1) < period && packetsToSend-- > 0) {
                 await this.clients[i].send();
                 this.sent[i] += 1;
             }
             if (i == this.clients.length-1) {
                 i = -1;
                 console.log(`${JSON.stringify(this.sent)} -> ${this.sent.reduce((c, p)=>c+p, 0)}`);
+                while (performance.now() - t1 < period) {
+                    await wait();
+                }
             }
         }
         this.GracefulShutDown();
