@@ -3,10 +3,10 @@ import Sender from './Sender.mjs';
 import { Worker } from 'worker_threads';
 
 // Конфигурация по умолчанию
-const TOTAL_BUFFER_SIZE = 1_073_741_824; // 1GB in bytes
+const TOTAL_BUFFER_SIZE_B = 1_073_741_824; // 1GB in bytes
 const DEFAULT_PORT_BASE = 40000;
-const DEFAULT_PACKET_SIZE = 8192; // 8KB
-const DEFAULT_SPEED = 10; // Gbit/s
+const DEFAULT_PACKET_SIZE_KB = 8192; // 8KB
+const DEFAULT_SPEED_Gbit = 10; // Gbit/s
 const DEFAULT_MODE = 'sthread';
 const MODE_MULTITHREAD = 'mthread';
 
@@ -23,9 +23,9 @@ const args = minimist(process.argv.slice(2), {
     },
     default: {
         portBase: DEFAULT_PORT_BASE,
-        packetSize: DEFAULT_PACKET_SIZE,
+        packetSize: DEFAULT_PACKET_SIZE_KB,
         sockets: 1,
-        speed: DEFAULT_SPEED,
+        speed: DEFAULT_SPEED_Gbit,
         mode: DEFAULT_MODE
     }
 });
@@ -36,6 +36,7 @@ const portBase = parseInt(args.portBase);
 const packetSize = parseInt(args.packetSize);
 const isMaxSpeed = args.max;
 const targetSpeed = isMaxSpeed ? 0 : parseFloat(args.speed);
+const packetsPerSec = targetSpeed * 134217728 / packetSize;
 const mode = args.mode;
 
 if (!serverAddress) throw new Error('Server address required');
@@ -47,13 +48,13 @@ if (!isMaxSpeed && isNaN(targetSpeed)) throw new Error('Invalid speed');
 console.log(`Starting client with:
 - Server: ${serverAddress}
 - Sockets: ${numSockets}
-- Mode: ${isMaxSpeed ? 'MAX SPEED' : targetSpeed + ' Packets/s'}
+- Mode: ${isMaxSpeed ? 'MAX SPEED' : `${targetSpeed} Gbit (${packetsPerSec} Packets/s`}
 - Packet size: ${(packetSize / 1024).toFixed(2)} KB`);
 const socketInfoList = Array(numSockets).fill().map((_, i) => ({
     port: portBase + i,
     packetSize,
     socketIndex: i,
-    bufferSize: Math.floor(TOTAL_BUFFER_SIZE / numSockets)
+    bufferSize: Math.floor(TOTAL_BUFFER_SIZE_B / numSockets)
 }));
 if (mode == DEFAULT_MODE) {
 

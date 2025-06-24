@@ -129,10 +129,9 @@ class Sender {
                 await this.clients[i].send();
                 this.sent[i] += 1;
             }
-
             if (i == this.clients.length-1) {
                 i = -1;
-                // console.log(`${JSON.stringify(this.sent)} -> ${this.sent.reduce((c, p)=>c+p, 0)}`);
+                console.log(`${JSON.stringify(this.sent)} -> ${this.sent.reduce((c, p)=>c+p, 0)}`);
             }
         }
         this.GracefulShutDown();
@@ -144,6 +143,7 @@ class Sender {
         process.stdout.write(`\r${stdout}`); // \r возвращает каретку в начало строки
     }
     StartGracefulShutDown() {
+        console.log(`Start shutdown`);
         this.stopFlag = true;
     }
     GracefulShutDown() {
