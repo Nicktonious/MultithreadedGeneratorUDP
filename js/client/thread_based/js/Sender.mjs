@@ -60,7 +60,7 @@ class Sender {
                 buffer.writeUInt32BE(packetCounter++, 1); // 8 байт после заголовка (BE = Big Endian)
 
                 // let t1 = performance.now();
-                socket.send(buffer, port, serverAddress);
+                socket.send(buffer, portBase, serverAddress);
 
                 let t2 = performance.now();
                 deltaAvg += t2 - t1;
