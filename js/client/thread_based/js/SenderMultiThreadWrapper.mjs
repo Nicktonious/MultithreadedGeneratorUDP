@@ -3,6 +3,5 @@ import Sender from './Sender.mjs';
 
 const sender = new Sender(workerData);
 
-await sender.Run(workerData);
-
-
+await sender.Init();
+sender.RunFixedSpeed(workerData);

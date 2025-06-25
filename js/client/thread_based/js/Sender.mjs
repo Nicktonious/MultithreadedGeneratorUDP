@@ -1,11 +1,13 @@
 import { createSocket } from 'dgram';
-import { cpus } from 'os'; 
+import { cpus } from 'os';
+import { performance } from 'node:perf_hooks';
+
 // import CircularAverageBuffer from './CircularBuffer';
 const TOTAL_BUFFER_SIZE = 1_073_741_824; // 1GB in bytes
 const propotion = (x, in_min, in_max, out_min, out_max) => {
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
-const wait = (ms=0) => new Promise((res, rej) => setImmediate(res));
+const wait = (ms = 0) => new Promise((res, rej) => setImmediate(res));
 
 class Sender {
     clients = null;
@@ -20,38 +22,17 @@ class Sender {
         return (isMaxSpeed) ? this.RunMaxSpeed() : this.RunFixedSpeed({ targetSpeed });
     }
     async Init() {
-        const {
-            serverAddress,
-            sockets: socketsInfo,
-            isMaxSpeed,
-            targetSpeed,
-            threadIndex,
-            packetSize
-        } = this.workerData;
-        // this.InitSysChannel(workerData)
+        const { serverAddress, sockets: socketsInfo } = this.workerData;
         await this.InitClient(socketsInfo, serverAddress);
     }
 
-    BindCPU(threadIndex) {
-        try {
-            const cpuId = threadIndex % cpus().length;
-            process.cpuUsage();
-            process.env.UV_THREADPOOL_SIZE = 1;
-            if (process.setAffinity) {
-                process.setAffinity([cpuId]);
-            }
-        } catch (e) {
-            console.error(`[Thread ${threadIndex}] CPU binding failed:`, e.message);
-        }
-    }
-
     InitSysChannel({ serverAddress, tcpPort }) {
-        try { 
+        try {
             require('net').createConnection({ host: serverAddress, port: tcpPort }, (_socket) => {
                 this.sysChannel = _socket;
             });
         } catch {
-            
+
         }
     }
 
@@ -59,9 +40,9 @@ class Sender {
         this.clients = socketsInfo.map((socketInfo, i) => {
             const { portBase, packetSize, socketIndex, port, bufferSize } = socketInfo;
             const socket = createSocket('udp4');
-            
+
             const buffer = Buffer.alloc(packetSize);
-            
+
             // Генерация случайных данных (кроме первых 8 байт)
             for (let i = 8; i < packetSize; i++) {
                 buffer[i] = Math.floor(Math.random() * 256);
@@ -69,18 +50,25 @@ class Sender {
 
             let packetCounter = 0;
             const HEADER_VALUE = i;
+            let c = 0;
+            let t1 = performance.now();
+            let deltaAvg = 0;
 
-            const send = async() => new Promise((res, rej) => {
+            const send = () => {
                 // Упаковываем заголовок и счетчик
                 buffer[0] = HEADER_VALUE;
                 buffer.writeUInt32BE(packetCounter++, 1); // 8 байт после заголовка (BE = Big Endian)
 
                 // let t1 = performance.now();
-                socket.send(buffer, port, serverAddress, (e) => {
-                    // this.latencyBuffer.push(performance.now()-t1);
-                    return e ? rej(e) : res();
-                });
-            });
+                socket.send(buffer, port, serverAddress);
+
+                let t2 = performance.now();
+                deltaAvg += t2 - t1;
+                t1 = t2;
+                if (c++ % 100000 == 0) {
+                    console.log(`[INFO] Average delay is ${(deltaAvg/c).toFixed(4)} ms`);
+                }
+            };
             return { socket, port, buffer, send, packetSize, socketIndex };
         });
         return Promise.all(this.clients.map(({ socket }, i) => {
@@ -90,13 +78,58 @@ class Sender {
         }));
     }
 
+    *IndexGen() {
+        let i = -1;
+        let l = this.clients.length;
+        while (true) {
+            // yield i < l ? ++i : i = 0;
+            yield 0;
+        }
+    }
+
+    async *ThrottledIndexGen(delayMs, timeoutMs) {
+        const generator = this.IndexGen();
+
+        while (!this.stopFlag) {
+            const t1 = performance.now();
+            yield generator.next().value;
+
+            while (performance.now() - t1 < delayMs) {
+                await new Promise(resolve => setImmediate(resolve));
+            }
+        }
+    }
+
+    /**
+     * Рассчитывает период между вызовами и количество операций за итерацию
+     * @param {number} iterationsPerSecond - Количество итераций в секунду
+     * @returns {Object} { period: number, k: number }
+     */
+    CalculateTiming(iterationsPerSecond) {
+        const MIN_PERIOD = 0.01; // Минимальный допустимый период в миллисекундах
+        const MULTIPLIER = 10;   // Во сколько раз увеличиваем период при агрегации
+
+        // Базовый расчет периода
+        let period = 1000 / iterationsPerSecond;
+        let k = 1;
+
+        // Если период слишком мал, увеличиваем его и вычисляем k
+        if (period < MIN_PERIOD) {
+            const ratio = MIN_PERIOD / period;
+            k = Math.ceil(ratio / MULTIPLIER) * MULTIPLIER;
+            period = (1000 / iterationsPerSecond) * k;
+        }
+
+        return { period, k };
+    }
+
     async RunMaxSpeed() {
         const K = 0.95;  // какой процент от очереди мы готовы забить сообщениями
         this.sent = Array(this.clients.length).fill(0);
 
         let interval = setInterval(() => {
             if (this.stopFlag) clearInterval(interval);
-            if (this.sent) console.log(`${JSON.stringify(this.sent)} -> ${this.sent.reduce((c, p)=>c+p, 0)}`);
+            if (this.sent) console.log(`${JSON.stringify(this.sent)} -> ${this.sent.reduce((c, p) => c + p, 0)}`);
             // this.SendMetaMsg(sent);
         }, 1000);
 
@@ -107,37 +140,52 @@ class Sender {
             // const socketBufferLoad = propotion(queueSize, 0, socketBufferSize*K, 0, 1);
             // packetsToSend = Math.floor(packetsToSend * (1 - socketBufferLoad));
             while (--packetsToSend > 0 && !this.stopFlag) {
-                await this.clients[i].send();
+                this.clients[i].send();
                 let q = this.clients[i].socket.getSendQueueSize();
                 if (q > 0) console.log(q);
                 this.sent[i] += 1;
             }
-            if (i == this.clients.length-1) i = -1;
+            if (i == this.clients.length - 1) i = -1;
             // this.ConsoleShow(JSON.stringify(this.clients.map(({ socket }) => socket.getSendQueueSize())));
             if (this.stopFlag) break;
         }
         this.GracefulShutDown();
     }
+
     async RunFixedSpeed({ targetSpeed }) {
+        let { period, k } = this.CalculateTiming(targetSpeed);
+        console.log(`[INFO] Send ${targetSpeed*k} packets with period ${period.toFixed(4)} ms`);
+
+        for await (let i of this.ThrottledIndexGen(period)) {
+            for (let j = 0; j < k; j++) {
+                this.clients[i].send();
+            }
+        }
+        console.log('done');
+        this.GracefulShutDown();
+    }
+
+    async _RunFixedSpeed({ targetSpeed }) {
         this.sent = Array(this.clients.length).fill(0);
-        const period = 100;
+        const period = 20;
+        let c = 0;
         for (let i = 0; i < this.clients.length; i++) {
             if (this.stopFlag) break;
             let t1 = performance.now();
             let packetsToSend = Math.ceil(targetSpeed / this.clients.length * period / 1000);
+
             while ((performance.now() - t1) < period && packetsToSend-- > 0) {
-                await this.clients[i].send();
+                this.clients[i].send();
                 this.sent[i] += 1;
             }
-            if (i == this.clients.length-1) {
+            if (i == this.clients.length - 1) {
                 i = -1;
-                console.log(`${JSON.stringify(this.sent)} -> ${this.sent.reduce((c, p)=>c+p, 0)}`);
-                while (performance.now() - t1 < period) {
-                    await wait();
-                }
+                // console.log(`${JSON.stringify(this.sent)} -> ${this.sent.reduce((c, p)=>c+p, 0)}`);
+                while (performance.now() - t1 < period);
             }
         }
-        this.GracefulShutDown();
+        // this.GracefulShutDown();
+        console.log('done');
     }
     SendMetaMsg(data) {
         this.sysChannel?.write(JSON.stringify({ timestamp: performance.now(), data }));
@@ -154,8 +202,8 @@ class Sender {
         this.clients?.forEach(({ socket }) => {
             socket.close();
         });
-        
-        console.log(`Sent from each socket:\n${JSON.stringify(this.sent)}\nTotal: ${this.sent?.reduce((c, p)=>c+p, 0)}`);
+
+        console.log(`Sent from each socket:\n${JSON.stringify(this.sent)}\nTotal: ${this.sent?.reduce((c, p) => c + p, 0)}`);
     }
 }
 

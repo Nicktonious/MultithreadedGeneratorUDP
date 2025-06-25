@@ -1,6 +1,6 @@
 import minimist from 'minimist';
-import Sender from './Sender.mjs';
 import { Worker } from 'worker_threads';
+
 
 // Конфигурация по умолчанию
 const TOTAL_BUFFER_SIZE_B = 1_073_741_824; // 1GB in bytes
@@ -58,35 +58,30 @@ const socketInfoList = Array(numSockets).fill().map((_, i) => ({
     socketIndex: i,
     bufferSize: Math.floor(TOTAL_BUFFER_SIZE_B / numSockets)
 }));
-if (mode == DEFAULT_MODE) {
 
-    const sender = new Sender({
-        serverAddress,
-        sockets: socketInfoList,
-        isMaxSpeed,
-        targetSpeed,
-        threadIndex: 0,
-        packetSize
-    });
-    process.on('SIGINT', () => {
-        sender.StartGracefulShutDown();
-    });
-    sender.Run({ targetSpeed: packetsPerSec, isMaxSpeed });
+const workers = [];
+for (let i = 0; i < numThreads; i++) {
+    // TODO предусмотреть для нечетного кол-ва сокетов
+    let socketsOnThread = (numThreads == 1) ? numSockets : 2;
 
-} else if (mode == MODE_MULTITHREAD) {
-    const workers = [];
-    for (let i = 0; i < numSockets; i++) {
-        if ((i + 1) % 2 == 0 || i == numSockets - 1) {
-            workers.push(new Worker('./SenderMultiThreadWrapper.mjs', {
-                workerData: {
-                    serverAddress,
-                    sockets: socketInfoList.splice(0, 2),
-                    isMaxSpeed,
-                    targetSpeed,
-                    threadIndex: Math.ceil((i + 1) / 2),
-                    packetSize
-                }
-            }));
+    let worker = new Worker('./js/client/thread_based/js/SenderMultiThreadWrapper.mjs', {
+        workerData: {
+            serverAddress,
+            sockets: socketInfoList.splice(0, socketsOnThread),
+            isMaxSpeed,
+            targetSpeed: packetsPerSec,
+            threadIndex: i,
+            packetSize
         }
-    }
+    });
+    worker.on('error', (err) => console.error(`Worker ${i} error:`, err));
+    worker.on('exit', (code) => {
+        if (code !== 0) console.error(`Worker ${i} exited with code ${code}`);
+    });
+    workers.push(worker);
 }
+process.on('SIGINT', () => {
+    console.log('SIGINT');
+    workers.forEach(child => child.terminate());
+    process.exit();
+});
