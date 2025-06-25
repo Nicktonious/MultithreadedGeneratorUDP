@@ -1,21 +1,14 @@
 import { createSocket } from 'dgram';
-import { cpus } from 'os';
 import { performance } from 'node:perf_hooks';
 
-// import CircularAverageBuffer from './CircularBuffer';
-const TOTAL_BUFFER_SIZE = 1_073_741_824; // 1GB in bytes
 const propotion = (x, in_min, in_max, out_min, out_max) => {
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
-const wait = (ms = 0) => new Promise((res, rej) => setImmediate(res));
 
 class Sender {
     clients = null;
     constructor(workerData) {
         this.workerData = workerData;
-        // this.latencyBuffer = new CircularAverageBuffer(10);
-        // Привязка потока к ядру ЦП
-        // this.BindCPU(threadIndex);
     }
     async Run({ targetSpeed, isMaxSpeed }) {
         await this.Init()
@@ -59,40 +52,31 @@ class Sender {
                 buffer[0] = HEADER_VALUE;
                 buffer.writeUInt32BE(packetCounter++, 1); // 8 байт после заголовка (BE = Big Endian)
 
-                // let t1 = performance.now();
                 socket.send(buffer, portBase, serverAddress);
 
+                /* DEBUG */
                 let t2 = performance.now();
                 deltaAvg += t2 - t1;
                 t1 = t2;
                 if (c++ % 100000 == 0) {
                     console.log(`[INFO] Average delay is ${(deltaAvg/c).toFixed(4)} ms`);
                 }
+                /******  */
             };
             return { socket, port, buffer, send, packetSize, socketIndex };
         });
         return Promise.all(this.clients.map(({ socket }, i) => {
             socket.bind(socketsInfo[i].port, () => {
+                console.log(socketsInfo[i].bufferSize);
                 socket.setSendBufferSize(socketsInfo[i].bufferSize);
             });
         }));
     }
 
-    *IndexGen() {
-        let i = -1;
-        let l = this.clients.length;
-        while (true) {
-            // yield i < l ? ++i : i = 0;
-            yield 0;
-        }
-    }
-
     async *ThrottledIndexGen(delayMs, timeoutMs) {
-        const generator = this.IndexGen();
-
         while (!this.stopFlag) {
             const t1 = performance.now();
-            yield generator.next().value;
+            yield 0;
 
             while (performance.now() - t1 < delayMs) {
                 await new Promise(resolve => setImmediate(resolve));
@@ -165,28 +149,6 @@ class Sender {
         this.GracefulShutDown();
     }
 
-    async _RunFixedSpeed({ targetSpeed }) {
-        this.sent = Array(this.clients.length).fill(0);
-        const period = 20;
-        let c = 0;
-        for (let i = 0; i < this.clients.length; i++) {
-            if (this.stopFlag) break;
-            let t1 = performance.now();
-            let packetsToSend = Math.ceil(targetSpeed / this.clients.length * period / 1000);
-
-            while ((performance.now() - t1) < period && packetsToSend-- > 0) {
-                this.clients[i].send();
-                this.sent[i] += 1;
-            }
-            if (i == this.clients.length - 1) {
-                i = -1;
-                // console.log(`${JSON.stringify(this.sent)} -> ${this.sent.reduce((c, p)=>c+p, 0)}`);
-                while (performance.now() - t1 < period);
-            }
-        }
-        // this.GracefulShutDown();
-        console.log('done');
-    }
     SendMetaMsg(data) {
         this.sysChannel?.write(JSON.stringify({ timestamp: performance.now(), data }));
     }

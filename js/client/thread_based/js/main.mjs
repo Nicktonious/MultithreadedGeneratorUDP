@@ -7,9 +7,8 @@ const TOTAL_BUFFER_SIZE_B = 1_073_741_824; // 1GB in bytes
 const GB_in_bytes = 1_073_741_824;
 const DEFAULT_PORT_BASE = 40000;
 const DEFAULT_PACKET_SIZE_KB = 8192; // 8KB
-const DEFAULT_SPEED_Gbit = 10; // Gbit/s
-const DEFAULT_MODE = 'sthread';
-const MODE_MULTITHREAD = 'mthread';
+const DEFAULT_SPEED_Gbit = 1; // Gbit/s
+
 
 
 // Парсинг аргументов
@@ -23,25 +22,19 @@ const args = minimist(process.argv.slice(2), {
         m: 'mode'
     },
     default: {
-        numThreads: 1,
-        portBase: DEFAULT_PORT_BASE,
         packetSize: DEFAULT_PACKET_SIZE_KB,
-        sockets: 1,
-        speed: DEFAULT_SPEED_Gbit,
-        mode: DEFAULT_MODE
+        sockets: 1
     }
 });
 
-const numThreads = parseInt(args.threads);
 const serverAddress = args.server;
 const numSockets = parseInt(args.sockets);
-const totalBufferSize = parseFloat(args.bufferSize)*GB_in_bytes ?? GB_in_bytes;
+const totalBufferSize = parseFloat(args.bufferSize) ? parseFloat(args.bufferSize)*GB_in_bytes : GB_in_bytes;
 const portBase = parseInt(args.portBase);
 const packetSize = parseInt(args.packetSize);
 const isMaxSpeed = args.max;
 const targetSpeed = isMaxSpeed ? 0 : parseFloat(args.speed);
 const packetsPerSec = targetSpeed * 134217728 / packetSize;
-const mode = args.mode;
 
 if (!serverAddress) throw new Error('Server address required');
 if (isNaN(numSockets)) throw new Error('Invalid sockets count');
@@ -53,17 +46,18 @@ console.log(`Starting client with:
 - Server: ${serverAddress}
 - Total SendBuffeSize: ${(totalBufferSize / GB_in_bytes).toFixed(2)} GB
 - Sockets: ${numSockets}
-- Mode: ${isMaxSpeed ? 'MAX SPEED' : `${targetSpeed} Gbit (${packetsPerSec} Packets/s`}
+- Mode: ${isMaxSpeed ? 'MAX SPEED' : `${targetSpeed} Gbit (${packetsPerSec} Packets/s)`}
 - Packet size: ${(packetSize / 1024).toFixed(2)} KB`);
 const socketInfoList = Array(numSockets).fill().map((_, i) => ({
     port: portBase + i,
+    portBase,
     packetSize,
     socketIndex: i,
     bufferSize: Math.floor(totalBufferSize / numSockets)
 }));
 
 const workers = [];
-for (let i = 0; i < numThreads; i++) {
+for (let i = 0; i < numSockets; i++) {
     // TODO предусмотреть для нечетного кол-ва сокетов
     let socketsOnThread = 1;
 
@@ -72,7 +66,7 @@ for (let i = 0; i < numThreads; i++) {
             serverAddress,
             sockets: socketInfoList.splice(0, socketsOnThread),
             isMaxSpeed,
-            targetSpeed: packetsPerSec,
+            targetSpeed: packetsPerSec/numSockets,
             threadIndex: i,
             packetSize
         }
