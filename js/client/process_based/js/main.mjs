@@ -1,102 +1,98 @@
-import minimist from 'minimist';
-import { execSync, fork } from 'node:child_process';
+import { exec, execSync, fork } from 'node:child_process';
 import os from 'node:os';
 import setQlen from './setqlen.mjs';
+import ClockGenerator from './ClassZMQServer.mjs';
+import parseArgs from './argsParser.mjs';
+import sendTcpInfo from './sendTCPInfo.mjs';
 
-// Конфигурация по умолчанию
-const TOTAL_BUFFER_SIZE_B = 1_073_741_824; // 1GB in bytes
+const MAX_SOCKETS_ON_PROC = 10;
 const GB_in_bytes = 1_073_741_824;
-const DEFAULT_PORT_BASE = 40000;
-const DEFAULT_PACKET_SIZE_KB = 8192; // 8KB
-const DEFAULT_SPEED_Gbit = 1; // Gbit/s
 
+function incrementIp(strIp, i) {
+    let arrIp = strIp.split('.');
+    arrIp[3] = +arrIp[3] + i;
+    return arrIp.join('.')
+}
 
+async function getTxSent(ifaceName) {
+    return new Promise((res, rej) => {
+        const command = `cat /sys/class/net/${ifaceName}/statistics/tx_packets`;
+        // const command = `cat /proc/net/dev | grep enp1s0np1 | awk '{print $10}'`
+        exec(command, (e, stdout, stderr) => {
+            if (e) res(undefined);
+            res(parseInt(stdout));
+        });
+    });
+}
 
-// Парсинг аргументов
-const args = minimist(process.argv.slice(2), {
-    alias: {
-        s: 'server',
-        p: 'portBase',
-        z: 'packetSize',
-        c: 'sockets',
-        r: 'speed',
-        m: 'mode'
-    },
-    default: {
-        packetSize: DEFAULT_PACKET_SIZE_KB,
-        sockets: 1
+async function main() {
+    const { dstIp, n, totalBufferSize, srcIp,
+        portBase, packetSize, baseCPUIndex, freq } = parseArgs(process.argv.slice(2));
+
+    console.log(`Starting client with:
+    - Server: ${dstIp}
+    - Total SendBufferSize: ${(totalBufferSize / GB_in_bytes).toFixed(2)} GB
+    - Sockets: ${n}
+    - Packet size: ${(packetSize / 1024).toFixed(2)} KB`);
+
+    /*try {
+        let res = await setQlen({ delayMs: 5, mps: packetsPerSec });
+        console.log(`Set txqlen = ${res}`);
+    } catch (e) {
+        console.log(`Error trying to set txqlen: ${e}`);
+    }*/
+
+    const generator = new ClockGenerator(5555);
+    const tx_sent_0 = await getTxSent('enp1s0np1');
+
+    setTimeout(() => { generator.Start(freq); }, 1000);
+
+    const socketInfoList = Array(n).fill().map((_, i) => ({
+        port: portBase + i,
+        srcIp: incrementIp(srcIp, i),
+        portBase,
+        socketIndex: i,
+        bufferSize: Math.floor(totalBufferSize / n)
+    }));
+
+    const processes = [];
+    for (let i = 0; i < 1 + Math.floor(n / MAX_SOCKETS_ON_PROC); i++) {
+        let args = JSON.stringify({
+            serverAddress: dstIp,
+            sockets: socketInfoList.splice(0, MAX_SOCKETS_ON_PROC),
+            threadIndex: i,
+            baseCPUIndex,
+            packetSize
+        });
+        const child = fork('./js/client/process_based/js/childProcess.mjs', [args], {
+            stdio: ['inherit', 'inherit', 'inherit', 'ipc']
+        });
+
+        processes.push(child);
     }
-});
-const serverAddress = args.server;
-const numSockets = parseInt(args.sockets);
-const totalBufferSize = parseFloat(args.bufferSize) ? parseFloat(args.bufferSize) * GB_in_bytes : GB_in_bytes;
-const portBase = parseInt(args.portBase);
-const packetSize = parseInt(args.packetSize);
-const baseCPUIndex = parseInt(args.baseCPU) ? parseInt(args.baseCPU) : 0; 
-const isMaxSpeed = args.max;
-const isTriang = args.triang;
-const targetSpeed = isMaxSpeed ? 0 : parseFloat(args.speed);
-const packetsPerSec = targetSpeed * 134217728 / packetSize;
 
-if (!serverAddress) throw new Error('Server address required');
-if (isNaN(numSockets)) throw new Error('Invalid sockets count');
-if (isNaN(portBase)) throw new Error('Invalid port base');
-if (isNaN(packetSize)) throw new Error('Invalid packet size');
-if (!isMaxSpeed && isNaN(targetSpeed)) throw new Error('Invalid speed');
+    // Привязка к CPU-ядру через taskset (Linux)
+    if (os.type() == 'Linux') {
+        const { pid } = process;
+        const cpu = baseCPUIndex;
+        execSync(`taskset -cp ${cpu} ${pid}`);
+    }
 
-console.log(`Starting client with:
-- Server: ${serverAddress}
-- Total SendBuffeSize: ${(totalBufferSize / GB_in_bytes).toFixed(2)} GB
-- Sockets: ${numSockets}
-- Mode: ${isMaxSpeed ? 'MAX SPEED' : `${targetSpeed} Gbit (${packetsPerSec} Packets/s)`}
-- Packet size: ${(packetSize / 1024).toFixed(2)} KB`);
+    // Обработка SIGINT
+    process.on('SIGINT', async () => {
+        console.log('Stop signal sent to all child processes.');
+        processes.forEach(child => child.send({ type: 'SIGINT' }));
+        setTimeout(async () => {
+            processes.forEach(child => child.kill('SIGTERM'));
+            generator.Stop()
 
-try {
-    let res = await setQlen({ delayMs: 5, mps: packetsPerSec });
-    console.log(`Set txqlen = ${res}`);
-} catch (e) {
-    console.log(`Error trying to set txqlen: ${e}`);
-}
+            const tx_sent_1 = await getTxSent('enp1s0np1');
+            const tx_sent = tx_sent_1 - tx_sent_0;
+            console.log(`Sent ${tx_sent} packets`);
+            await sendTcpInfo('10.120.100.51', 9999, tx_sent)
 
-const socketInfoList = Array(numSockets).fill().map((_, i) => ({
-    port: portBase + i,
-    portBase,
-    packetSize,
-    socketIndex: i,
-    bufferSize: Math.floor(totalBufferSize / numSockets)
-}));
-
-const processes = [];
-for (let i = 0; i < numSockets; i++) {
-    let args = JSON.stringify({
-        serverAddress,
-        sockets: socketInfoList.splice(0, 1),
-        isMaxSpeed,
-        isTriang,
-        targetSpeed: packetsPerSec / numSockets,
-        threadIndex: i,
-        baseCPUIndex,
-        packetSize
+        }, 200);
     });
-    const child = fork('./js/client/process_based/js/SenderMultiProc.mjs', [args], {
-        stdio: ['inherit', 'inherit', 'inherit', 'ipc']
-    });
-
-    processes.push(child);
 }
 
-// Привязка к CPU-ядру через taskset (Linux)
-if (os.type() == 'Linux') {
-    const { pid } = process;
-    const cpu = baseCPUIndex;
-    execSync(`taskset -cp ${cpu} ${pid}`);
-}
-
-// Обработка SIGINT
-process.on('SIGINT', () => {
-    console.log('Stop signal sent to all child processes.');
-    processes.forEach(child => child.send({ type: 'SIGINT' }));
-    setTimeout(() => {
-        processes.forEach(child => child.kill('SIGTERM'));
-    }, 200);
-});
+main();
