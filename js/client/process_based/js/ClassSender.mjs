@@ -1,22 +1,42 @@
-import { createSocket } from 'dgram';
 import { performance } from 'node:perf_hooks';
-
-const propotion = (x, in_min, in_max, out_min, out_max) => {
-    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
+import zmq from 'zeromq';
+import SocketClient from './ClassSocketClient.mjs';
+import buffer from 'node:buffer';
+import net from 'net';
+/*
+    serverAddress
+    sockets
+    threadIndex
+    baseCPUIndex
+    packetSize
+*/
 
 class Sender {
     clients = null;
-    constructor(workerData) {
+    constructor(workerData, brokerPort = 5555) {
         this.workerData = workerData;
+        this.port = brokerPort;
+        this.subscriber = null;
+        this.messageCount = 0;
+        this.packetSize = workerData.packetSize;
     }
+
+    Connect() {
+        this.subscriber = new zmq.Subscriber();
+        this.subscriber.connect(`ipc://zmq:${this.port}`);
+        this.subscriber.subscribe('clock');
+        // console.log(`ZMQ Subscriber подключен к порту ${this.port}`);
+    }
+
     async Run({ targetSpeed, isMaxSpeed }) {
         await this.Init()
+        this.Connect();
         return (isMaxSpeed) ? this.RunMaxSpeed() : this.RunFixedSpeed({ targetSpeed });
     }
+
     async Init() {
         const { serverAddress, sockets: socketsInfo } = this.workerData;
-        await this.InitClient(socketsInfo, serverAddress);
+        await this.InitClients(socketsInfo, serverAddress);
     }
 
     InitSysChannel({ serverAddress, tcpPort }) {
@@ -25,57 +45,16 @@ class Sender {
                 this.sysChannel = _socket;
             });
         } catch {
-
+            console.log('Не удалось создать TCP сокет');
         }
     }
 
-    async InitClient(socketsInfo, serverAddress) {
-        this.clients = socketsInfo.map((socketInfo, i) => {
-            const { portBase, packetSize, socketIndex, port, bufferSize } = socketInfo;
-            const socket = createSocket('udp4');
-
-            const buffer = Buffer.alloc(packetSize);
-
-            // Генерация случайных данных (кроме первых 8 байт)
-            for (let i = 8; i < packetSize; i++) {
-                buffer[i] = Math.floor(Math.random() * 256);
-            }
-
-            let packetCounter = 0;
-            const HEADER_VALUE = i;
-            let c = 0;
-            let t1 = performance.now();
-            let deltaAvg = 0;
-
-            const send = () => {
-                // Упаковываем заголовок и счетчик
-                buffer[0] = HEADER_VALUE;
-                buffer.writeUInt32BE(packetCounter++, 1); // 8 байт после заголовка (BE = Big Endian)
-
-                socket.send(buffer, portBase, serverAddress);
-
-                /* DEBUG 
-                let t2 = performance.now();
-                deltaAvg += t2 - t1;
-                t1 = t2;
-                if (c++ % 100000 == 0) {
-                    console.log(`[INFO] Average delay is ${(deltaAvg / c).toFixed(4)} ms`);
-                }
-                /******  */
-            };
-            return { socket, port, buffer, send, packetSize, socketIndex };
-        });
-        return Promise.all(this.clients.map(({ socket }, i) => {
-            socket.bind(socketsInfo[i].port, () => {
-                const { bufferSize } = socketsInfo[i];
-                console.log(bufferSize);
-                socket.setSendBufferSize(bufferSize);
-                socket.setRecvBufferSize(bufferSize);
-            });
-        }));
+    async InitClients(socketsInfo, serverAddress) {
+        this.clients = socketsInfo.map((socketInfo, i) => new SocketClient(socketInfo, serverAddress));
+        return Promise.all(this.clients.map(client => client.Init()));
     }
 
-    async *ThrottledIndexGen(delayMs, timeoutMs) {
+    async * ThrottledIndexGen(delayMs, timeoutMs) {
         while (!this.stopFlag) {
             const t1 = performance.now();
             yield 0;
@@ -110,6 +89,36 @@ class Sender {
         return { period, k };
     }
 
+    async RunBrokerSpeed() {
+        let buffer = Buffer.alloc(1024 * 1024 * 1024);
+        for (let offset = 0; offset < buffer.length; offset += this.packetSize) {
+            for (let clientInd = 0; clientInd < this.clients.length; clientInd++) {
+                buffer.writeInt32BE(clientInd, offset)
+            }
+        }
+        this.Connect();
+        let offset = 0;
+        let t1 = performance.now();
+        let delta = 0;
+        let c = 0;
+        for await (const [topic, msg] of this.subscriber) {
+            for (let i = 0; i < this.clients.length; i++) {
+                this.clients[i].Send(buffer.subarray(offset, offset+this.packetSize));
+            }
+            offset += this.packetSize;
+            // this.clients.forEach(c => c.Send(buffer.subarray(offset, offset+this.packetSize)));
+
+            // this.messageCount += this.clients.length;
+            /*let t2 = performance.now();
+            delta = t2 - t1;
+            t1 = t2;
+            if (++c == 1000) {
+                process.stdout.write(`delta = ${delta}\t\r`);
+                c = 0;
+            }*/
+        }
+    }
+
     async RunFixedSpeed({ targetSpeed }) {
         let { period, k } = this.CalculateTiming(Math.round(targetSpeed));
         console.log(`[INFO] Send ${targetSpeed * k} packets with period ${period.toFixed(4)} ms`);
@@ -139,7 +148,7 @@ class Sender {
                 skipCounter = 0;
             }
             if (!maxAchieved) {
-                skipRatio = 1 - this.#TriangleWave(intervalCounter*intervalPeriod, T);
+                skipRatio = 1 - this.#TriangleWave(intervalCounter * intervalPeriod, T);
                 if (skipRatio == 0) {
                     maxAchieved = true;
                     clearInterval(interval);
