@@ -23,11 +23,14 @@ class SocketClient {
             console.log('Failed to create interface ', e);
         }*/
         return new Promise((res, rej) => {
-            this.socket.bind(this.socketInfo.port, this.socketInfo.srcIp, () => {
-                this.socket.setSendBufferSize(Math.round(65000));
+            this.socket.bind(/*this.socketInfo.port*/0, this.socketInfo.srcIp, () => {
+                this.socket.setSendBufferSize(this.bufferSize);
                 // socket.setRecvBufferSize(this.bufferSize);
                 res();
             });
+        }).then(() => {
+            let { port, address } = this.socket.address();
+            console.log(`${address}:${port} -> ${this.socketInfo.port}`);
         });
     }
 
