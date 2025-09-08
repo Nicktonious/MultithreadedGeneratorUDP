@@ -1,24 +1,19 @@
 import os, { cpus } from 'os';
 import Sender from './ClassSender.mjs';
-import { argv } from 'process';
+import { argv, send } from 'process';
 import { execSync } from 'child_process';
+import { taskset } from './utils.mjs';
 
 const [path, fn, args] = argv;
 let workerData = JSON.parse(args);
 
-// Привязка к CPU-ядру через taskset (Linux)
-if (os.type() == 'Linux') {
-    const { pid } = process;
-    let i = workerData.threadIndex;
-    let { baseCPUIndex } = workerData;
-    const cpu = baseCPUIndex + ((i+1) % cpus().length);
-    execSync(`taskset -cp ${cpu} ${pid}`);
-    console.log(`Process ${process.pid} running on Core ${cpu}`);
+function sendTxStats() {
+    process.send({ com: 'tx_packets', value: sender.messageCount });
 }
 
-const sender = new Sender(workerData, 5555);
-await sender.Init();
-sender.RunBrokerSpeed()
+const cpu = workerData.baseCPUIndex + ((workerData.threadIndex + 1) % cpus().length);
+taskset(cpu, false);
+console.log(`Process ${process.pid} running on Core ${cpu}, ${workerData.sockets.length} sockets`);
 
 process.on('message', (msg) => {
     console.log(msg);
@@ -27,7 +22,14 @@ process.on('message', (msg) => {
     }
 });
 
-// if (workerData.isTriang)
-//     sender.RunTriangleSpeed(workerData);
-// else 
-//     sender.RunFixedSpeed(workerData);
+process.on('SIGINT', () => {
+    sendTxStats();
+    // console.log(`${sender.workerData.threadIndex} : ${sender.ticks}, ${sender.messageCount}`);
+    process.exit();
+});
+process.on('message', msg => {
+    if (msg.com == 'tx_packets') sendTxStats();
+});
+const sender = new Sender(workerData, "ipc:///tmp/zmq_clock.ipc");
+console.log(`${process.pid} - RunBrokerSpeed()`);
+sender.RunBrokerSpeed();
