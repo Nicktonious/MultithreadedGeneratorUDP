@@ -3,6 +3,7 @@ import zmq from 'zeromq';
 import SocketClient from './ClassSocketClient.mjs';
 import buffer from 'node:buffer';
 import net from 'net';
+import crypto from 'crypto';
 /*
     serverAddress
     sockets
@@ -13,19 +14,22 @@ import net from 'net';
 
 class Sender {
     clients = null;
-    constructor(workerData, brokerPort = 5555) {
+    constructor(workerData, brokerAddress) {
         this.workerData = workerData;
-        this.port = brokerPort;
+        this.brokerAddress = brokerAddress;
         this.subscriber = null;
         this.messageCount = 0;
+        this.ticks = 0;
         this.packetSize = workerData.packetSize;
     }
 
     Connect() {
         this.subscriber = new zmq.Subscriber();
-        this.subscriber.connect(`ipc://zmq:${this.port}`);
+        // console.log(`trying connect to tcp://localhost:${this.port}`);
+        // this.subscriber.connect(`tcp://localhost:${this.port}`);
+        this.subscriber.connect(this.brokerAddress);
         this.subscriber.subscribe('clock');
-        // console.log(`ZMQ Subscriber подключен к порту ${this.port}`);
+        console.log(`ZMQ Subscriber подключен к ${this.brokerAddress}`);
     }
 
     async Run({ targetSpeed, isMaxSpeed }) {
@@ -36,17 +40,12 @@ class Sender {
 
     async Init() {
         const { serverAddress, sockets: socketsInfo } = this.workerData;
-        await this.InitClients(socketsInfo, serverAddress);
-    }
-
-    InitSysChannel({ serverAddress, tcpPort }) {
         try {
-            require('net').createConnection({ host: serverAddress, port: tcpPort }, (_socket) => {
-                this.sysChannel = _socket;
-            });
-        } catch {
-            console.log('Не удалось создать TCP сокет');
+            await this.InitClients(socketsInfo, serverAddress);
+        } catch (e) {
+            console.log(e);
         }
+        // console.log(`inited ${this.clients.length} clients`);
     }
 
     async InitClients(socketsInfo, serverAddress) {
@@ -59,10 +58,8 @@ class Sender {
             const t1 = performance.now();
             yield 0;
             while (performance.now() - t1 < delayMs) {
-                // c++;
                 await new Promise(resolve => setImmediate(resolve));
             }
-            // console.log(c);
         }
     }
 
@@ -90,32 +87,16 @@ class Sender {
     }
 
     async RunBrokerSpeed() {
-        let buffer = Buffer.alloc(1024 * 1024 * 1024);
-        for (let offset = 0; offset < buffer.length; offset += this.packetSize) {
-            for (let clientInd = 0; clientInd < this.clients.length; clientInd++) {
-                buffer.writeInt32BE(clientInd, offset)
-            }
-        }
+        await this.Init();
         this.Connect();
-        let offset = 0;
-        let t1 = performance.now();
-        let delta = 0;
-        let c = 0;
+
+        let payload = crypto.randomBytes(this.packetSize-60-8);
         for await (const [topic, msg] of this.subscriber) {
             for (let i = 0; i < this.clients.length; i++) {
-                this.clients[i].Send(buffer.subarray(offset, offset+this.packetSize));
+                this.clients[i].Send(payload);
+                this.messageCount += 1;
             }
-            offset += this.packetSize;
-            // this.clients.forEach(c => c.Send(buffer.subarray(offset, offset+this.packetSize)));
-
-            // this.messageCount += this.clients.length;
-            /*let t2 = performance.now();
-            delta = t2 - t1;
-            t1 = t2;
-            if (++c == 1000) {
-                process.stdout.write(`delta = ${delta}\t\r`);
-                c = 0;
-            }*/
+            this.ticks += 1;
         }
     }
 
@@ -154,7 +135,6 @@ class Sender {
                     clearInterval(interval);
                 }
             }
-
         }, intervalPeriod);
 
         for await (let i of this.ThrottledIndexGen(period)) {
