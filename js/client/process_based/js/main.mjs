@@ -1,33 +1,31 @@
 import { exec, execSync, fork } from 'node:child_process';
-import os from 'node:os';
 import setQlen from './setqlen.mjs';
 import ClockGenerator from './ClassZMQServer.mjs';
 import parseArgs from './argsParser.mjs';
-import sendTcpInfo from './sendTCPInfo.mjs';
+import { StartZMQGen, StopZMQGen } from './ClockGenWrapper.mjs';
+import ControlChannel from './ClassControlChannel.mjs';
+import { getTxSent, incrementIp, sleep, taskset } from './utils.mjs';
+import createConfiguration from './createTempConf.mjs';
+import { loadConfig } from './configParser.mjs';
+import { StatsReceiver } from './Stats.mjs';
 
-const MAX_SOCKETS_ON_PROC = 10;
 const GB_in_bytes = 1_073_741_824;
 
-function incrementIp(strIp, i) {
-    let arrIp = strIp.split('.');
-    arrIp[3] = +arrIp[3] + i;
-    return arrIp.join('.')
-}
-
-async function getTxSent(ifaceName) {
-    return new Promise((res, rej) => {
-        const command = `cat /sys/class/net/${ifaceName}/statistics/tx_packets`;
-        // const command = `cat /proc/net/dev | grep enp1s0np1 | awk '{print $10}'`
-        exec(command, (e, stdout, stderr) => {
-            if (e) res(undefined);
-            res(parseInt(stdout));
-        });
-    });
+function getSocketsInfo({ n, srcIp, portBase, endPort, totalBufferSize }) {
+    return Array(n).fill().map((_, i) => ({
+        port: portBase + i % (endPort - portBase + 1),
+        srcIp: incrementIp(srcIp, i),
+        portBase,
+        socketIndex: i,
+        bufferSize: Math.floor(totalBufferSize / n)
+    }));
 }
 
 async function main() {
+    const args = parseArgs(process.argv.slice(2));
     const { dstIp, n, totalBufferSize, srcIp,
-        portBase, packetSize, baseCPUIndex, freq } = parseArgs(process.argv.slice(2));
+        portBase, packetSize, baseCPUIndex,
+        freq, spp, infoCh, endPort, time } = args;
 
     console.log(`Starting client with:
     - Server: ${dstIp}
@@ -36,30 +34,21 @@ async function main() {
     - Packet size: ${(packetSize / 1024).toFixed(2)} KB`);
 
     /*try {
-        let res = await setQlen({ delayMs: 5, mps: packetsPerSec });
+        let msgPerSec = freq * n;
+        let res = await setQlen({ qlen: msgPerSec*1.2, iface: 'enp1s0np1' });
         console.log(`Set txqlen = ${res}`);
     } catch (e) {
         console.log(`Error trying to set txqlen: ${e}`);
     }*/
-
-    const generator = new ClockGenerator(5555);
-    const tx_sent_0 = await getTxSent('enp1s0np1');
-
-    setTimeout(() => { generator.Start(freq); }, 1000);
-
-    const socketInfoList = Array(n).fill().map((_, i) => ({
-        port: portBase + i,
-        srcIp: incrementIp(srcIp, i),
-        portBase,
-        socketIndex: i,
-        bufferSize: Math.floor(totalBufferSize / n)
-    }));
+    
+    const socketInfoList = getSocketsInfo(args);
 
     const processes = [];
-    for (let i = 0; i < 1 + Math.floor(n / MAX_SOCKETS_ON_PROC); i++) {
+    const packets = Array(Math.ceil(n / spp)).fill(-1);
+    for (let i = 0; socketInfoList.length > 0; i++) {
         let args = JSON.stringify({
             serverAddress: dstIp,
-            sockets: socketInfoList.splice(0, MAX_SOCKETS_ON_PROC),
+            sockets: socketInfoList.splice(0, spp),
             threadIndex: i,
             baseCPUIndex,
             packetSize
@@ -71,28 +60,65 @@ async function main() {
         processes.push(child);
     }
 
-    // Привязка к CPU-ядру через taskset (Linux)
-    if (os.type() == 'Linux') {
-        const { pid } = process;
-        const cpu = baseCPUIndex;
-        execSync(`taskset -cp ${cpu} ${pid}`);
+    const stats = new StatsReceiver(processes).Start();
+
+    taskset(baseCPUIndex, true);
+    console.log(`Main Process ${process.pid} running on Core ${baseCPUIndex}`);
+
+    const generator = await new ClockGenerator({ address: 'ipc:///tmp/zmq_clock.ipc' }).Init();
+    
+    let ctrlCh = infoCh ? new ControlChannel(infoCh) : undefined;
+
+    if (ctrlCh) try {
+        await ctrlCh.Connect();
+        await ctrlCh.Register();
+
+        console.log('Registered');
+
+        const conf = createConfiguration(args);
+        console.log(conf.groups[0].sensors.map(s => s.dst));
+        await ctrlCh.Start(conf);
+        
+    } catch (e) {
+        console.log(e);
     }
+    
 
     // Обработка SIGINT
     process.on('SIGINT', async () => {
-        console.log('Stop signal sent to all child processes.');
-        processes.forEach(child => child.send({ type: 'SIGINT' }));
+        // processes.forEach(child => child.send({ com: 'tx_packets' }));
+        console.log('INTERRUPT signal');
+
+        generator.Stop();
+
         setTimeout(async () => {
-            processes.forEach(child => child.kill('SIGTERM'));
-            generator.Stop()
+            processes.filter(child => !child.killed).forEach(child => {
+                try {
+                    child.kill('SIGINT');
+                } catch (err) { }
+            });
 
-            const tx_sent_1 = await getTxSent('enp1s0np1');
-            const tx_sent = tx_sent_1 - tx_sent_0;
+            const tx_stats = await stats.GetStats();
+            const tx_sent = tx_stats.reduce((p, c) => p+c, 0);
             console.log(`Sent ${tx_sent} packets`);
-            await sendTcpInfo('10.120.100.51', 9999, tx_sent)
+            console.log(`Stats: ${stats.packets}\ntotal: ${tx_sent}`);
 
-        }, 200);
+            if (ctrlCh) try {
+                ctrlCh.Packets(tx_sent);
+                await ctrlCh.Stop();
+                ctrlCh.Close();
+            } catch {
+                console.log('Failed to send Stop command');
+            }
+            process.exit();
+        }, 3000);
     });
+
+    setTimeout(async () => {
+
+        const tickLimit = time * freq;
+        await generator.Run(freq, tickLimit, () => process.kill(process.pid, 'SIGINT'));
+    }, 4000);
 }
 
 main();
