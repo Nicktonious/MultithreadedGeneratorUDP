@@ -1,31 +1,29 @@
 import zmq from 'zeromq';
-
-// Используем performance.now() для более точных измерений времени внутри приложения
 import { performance } from 'perf_hooks';
+import fs from 'node:fs';
+import { sleep } from './utils.mjs';
 
 class ClockGenerator {
-    constructor(port) {
-        this.port = port;
+    constructor({ address }) {
+        this.address = address;
         this.publisher = new zmq.Publisher();
         this.stopFlag = false;
         this.messageCounter = 0;
     }
+    async Init() {
+        await this.publisher.bind(this.address);
+        console.log(`ZMQ Publisher-брокер запущен на ${this.address}`);
+        await sleep(100);
+        return this;
+    }
 
-    async Start(freq) {
-        await this.publisher.bind(`ipc://zmq:${this.port}`);
-        console.log(`ZMQ Publisher-брокер запущен на порту ${this.port}`);
+    async Start(freq, limit, cb) {
+        // await this.publisher.bind(`tcp://*:${this.port}`);
+        await this.publisher.bind(this.address);
+        await sleep(100);
+        console.log(`ZMQ Publisher-брокер запущен на ${this.address}`);
 
-        // Запускаем генератор в фоне, не дожидаясь его завершения
-        this.Run(freq);
-
-        // Настраиваем обработку прерывания (Ctrl+C)
-        /*process.on('SIGINT', async () => {
-            console.log('\nПолучен сигнал SIGINT. Завершение работы...');
-            this.stopFlag = true;
-            await this.publisher.close();
-            // Даем небольшую паузу, чтобы цикл успел завершиться
-            setTimeout(() => process.exit(0), 100);
-        });*/
+        await this.Run(freq, limit, cb);
     }
 
     /**
@@ -35,31 +33,42 @@ class ClockGenerator {
      */
     async *intervalGenerator(delayMicroseconds) {
         const delayMs = delayMicroseconds / 1000;
+        let t_0 = performance.now();
+        let t_1 = t_0 + delayMs;
+        let t_2 = t_1 + delayMs;
+
         while (!this.stopFlag) {
-            const startTime = performance.now();
             yield;
+            await new Promise(resolve => setImmediate(resolve));
             // Ожидание с постоянным возвратом управления Event Loop
-            while (performance.now() - startTime < delayMs) {
-                // setImmediate ставит колбэк в очередь, позволяя другим
-                // операциям выполниться, но вносит большую задержку.
-                await new Promise(resolve => setImmediate(resolve));
-            }
+            while ((t_1 = performance.now()) - t_0 < delayMs) { }
+            t_0 = t_1;
+            t_1 = t_2;
+            t_2 += delayMs;
         }
     }
 
-    async Run(freq) {
+    async Run(freq, limit=Number.MAX_SAFE_INTEGER, cb=()=>{}) {
         const targetInterval = 1/freq *1000 * 1000; // Целевой интервал в микросекундах
         console.log(`Целевой интервал: ${targetInterval} мкс`);
+        let t_0 = performance.now();
+        try {
+            for await (const _ of this.intervalGenerator(targetInterval)) {
+                if (this.stopFlag) break;
 
-        for await (const _ of this.intervalGenerator(targetInterval)) {
-            if (this.stopFlag) break;
-
-            // Отправляем текущее время в наносекундах для максимальной точности
-            const message = process.hrtime.bigint().toString();
-            await this.publisher.send(['clock', message]);
-            this.messageCounter++;
+                await this.publisher.send(['clock', ++this.messageCounter]);
+                if (this.messageCounter >= limit) {
+                    console.log(this.messageCounter, limit);
+                    cb();
+                    break;
+                }
+            }
+            console.log(`Interval worktime: ${(performance.now()-t_0)/1000} seconds`);
+        } catch (e) {
+            console.log(e);
         }
     }
+
     Stop() {
         this.stopFlag = true;
     }
