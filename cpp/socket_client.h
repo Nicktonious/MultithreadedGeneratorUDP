@@ -1,9 +1,15 @@
 #pragma once
 #include <iostream>
 #include <string>
-#include <memory>
-#include <asio.hpp>
 #include <vector>
+#include <cstdint>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <cstring>
+#include <system_error>
 
 class SocketClient {
 private:
@@ -15,17 +21,18 @@ private:
     unsigned short dstPort;
     int bufferSize;
     
-    asio::io_context ioContext;
-    std::unique_ptr<asio::ip::udp::socket> socket;
-    asio::ip::udp::endpoint remoteEndpoint;
+    int socketFd;
+    sockaddr_in remoteAddr;
     
 public:
     SocketClient(const std::string& name, const std::string& src, 
                 const std::string& dst, int socketIndex, int bufferSize);
+    ~SocketClient();
     
     bool init();
     void send(const uint8_t* data, size_t size);
     
     std::string getName() const { return name; }
     int getSocketIndex() const { return socketIndex; }
+    int getSocketFd() const { return socketFd; }
 };
