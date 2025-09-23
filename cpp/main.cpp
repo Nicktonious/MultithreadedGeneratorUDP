@@ -8,6 +8,7 @@
 #include "sender.h"
 #include <pthread.h>
 #include <sched.h>
+#include "work_args.h"
 
 // Глобальный указатель для доступа к sender из обработчика сигнала
 static Sender* globalSender = nullptr;
@@ -58,7 +59,7 @@ WorkArgs parseWorkerData(const std::string& jsonStr) {
     return args;
 }
 
-int main(int argc, char* argv[]) {
+int  main(int argc, char* argv[]) {
     if (argc < 2) {
         std::cerr << "Usage: " << argv[0] << " <json_worker_data>" << std::endl;
         return 1;
@@ -70,16 +71,16 @@ int main(int argc, char* argv[]) {
     setCPUAffinity(cpu);
     
     Sender sender(workerData, 
-                 "ipc:///tmp/zmq_clock.ipc", 
-                 "ipc:///tmp/zmq_data_" + std::to_string(workerData.threadIndex) + ".ipc");
+                "ipc:///tmp/zmq_clock.ipc", 
+                "ipc:///tmp/zmq_data_" + std::to_string(workerData.threadIndex) + ".ipc");
     
     std::cout << "Process " << getpid() << " running on Core " << cpu 
-              << ", " << workerData.sensors.size() << " sockets" << std::endl;
+            << ", " << workerData.sensors.size() << " sockets" << std::endl;
     
     globalSender = &sender;
     signal(SIGINT, signalHandler);
 
-              /*signal(SIGINT, [&](int) {
+            /*signal(SIGINT, [&](int) {
         std::cout << getpid() << ": Sent " << sender.getMessageCount() << std::endl;
         exit(0);
     });*/
