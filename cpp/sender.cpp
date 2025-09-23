@@ -1,4 +1,5 @@
 #include "sender.h"
+#include "work_args.h"
 #include <iostream>
 #include <random>
 #include <zmq.hpp>
@@ -48,8 +49,9 @@ void Sender::runBrokerSpeed() {
     if (!initClients() || !connect()) {
         return;
     }
-    
-    std::vector<uint8_t> payload(workerData.packetSize);
+    int packetSize = workerData.packetSize;
+    int bufSize = packetSize*workerData.sensors.size();
+    std::vector<uint8_t> payload(bufSize);
   
     // Заполнение буфера случайными данными
     std::random_device rd;
@@ -70,8 +72,10 @@ void Sender::runBrokerSpeed() {
             std::string msgStr(static_cast<char*>(message.data()), message.size());
             if (msgStr.substr(0, 5) == "clock") {
                 auto t0 = std::chrono::high_resolution_clock::now();
-                for (auto& client : clients) {
-                    client->send(payloadPtr, payloadSize);
+                for (size_t i = 0; i < clients.size(); i++) {
+                    // Вычисляем указатель на слайс для текущего клиента
+                    uint8_t* slicePtr = payloadPtr + (i * packetSize);
+                    clients[i]->send(slicePtr, packetSize);
                     messageCount++;
                 }
                 ticks++;

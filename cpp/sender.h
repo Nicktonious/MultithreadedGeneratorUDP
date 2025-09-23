@@ -1,26 +1,12 @@
 #pragma once
+
+#include "work_args.h"
 #include <vector>
 #include <memory>
 #include <atomic>
 #include <chrono>
 #include <zmq.hpp>
 #include "socket_client.h"
-
-struct SensorOpts {
-    std::string name;
-    std::string src;
-    std::string dst;
-    int socketIndex;
-    int bufferSize;
-};
-
-struct WorkArgs {
-    std::string groupName;
-    int packetSize;
-    std::vector<SensorOpts> sensors;
-    int baseCPUIndex;
-    int threadIndex;
-};
 
 class Sender {
 private:
