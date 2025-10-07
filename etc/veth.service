@@ -1,0 +1,21 @@
+# sudo systemctl daemon-reload
+# sudo systemctl enable  veth@dev01
+# sudo systemctl disable veth@dev01
+# sudo systemctl restart veth@dev01
+# sudo systemctl status  veth@dev01
+
+[Unit]
+Description = veth @ %I
+Wants = network-online.target
+After = network.target network-online.target
+
+[Service]
+Type = oneshot
+# RemainAfterExit=yes
+WorkingDirectory = /home/%i/veth
+User  = root
+Group = root
+ExecStart = /bin/sh etc/veth.rc
+
+[Install]
+WantedBy=multi-user.target

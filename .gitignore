@@ -1,3 +1,6 @@
+*~
+*.swp
+*.log
 node_modules/
 .venv/
 go/
@@ -6,3 +9,4 @@ pcap_files
 js/client/process_based/js/00_raw
 js/client/process_based/js/stable copy
 js/client/process_based/js/build
+!.gitignore

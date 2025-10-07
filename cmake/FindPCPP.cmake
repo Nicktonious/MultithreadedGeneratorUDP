@@ -1,0 +1,36 @@
+find_package(PCAP REQUIRED)
+
+set(PCPP_ROOT ${CMAKE_SOURCE_DIR}/lib/pcpp)
+
+find_path(PCPP_INCLUDE_DIR
+    NAMES RawPacket.h
+    NO_DEFAULT_PATH PATHS ${PCPP_ROOT}/include
+    PATH_SUFFIXES pcapplusplus
+    REQUIRED)
+
+find_library(PCPP_COMMON_LIBRARY NAMES libCommon++.a
+    NO_DEFAULT_PATH PATHS ${PCPP_ROOT}/lib REQUIRED)
+find_library(PCPP_PACKET_LIBRARY NAMES libPacket++.a
+    NO_DEFAULT_PATH PATHS ${PCPP_ROOT}/lib REQUIRED)
+find_library(PCPP_PCAP_LIBRARY NAMES libPcap++.a
+    NO_DEFAULT_PATH PATHS ${PCPP_ROOT}/lib REQUIRED)
+
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(PCPP
+    REQUIRED_VARS
+        PCPP_INCLUDE_DIR 
+        PCPP_COMMON_LIBRARY PCPP_PACKET_LIBRARY PCPP_PCAP_LIBRARY)
+
+if(PCPP_FOUND AND NOT TARGET PCPP::PCPP)
+    add_library(PCPP::PCPP INTERFACE IMPORTED)
+    target_include_directories(PCPP::PCPP INTERFACE ${PCPP_INCLUDE_DIR})
+    set(PCPP_LIBRARY ${PCPP_ROOT}/lib/*.a)
+    target_link_libraries(PCPP::PCPP INTERFACE
+        ${PCPP_COMMON_LIBRARY}
+        ${PCPP_PACKET_LIBRARY} 
+        ${PCPP_PCAP_LIBRARY}
+        PCAP::PCAP
+    )
+    # set_property(TARGET PCPP::PCPP PROPERTY INCLUDE_DIRECTORIES "${PCPP_INCLUDE_DIR}")
+    # set_property(TARGET PCPP::PCPP PROPERTY IMPORTED_LOCATION "${PCPP_LIBRARY}")
+endif()
