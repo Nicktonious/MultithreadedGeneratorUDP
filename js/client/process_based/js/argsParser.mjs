@@ -39,7 +39,8 @@ export default function parseArgs(argv) {
             k: "packetSize",
             f: 'freq',
             m: 'sockPerProc',
-            t: 'time'
+            t: 'time',
+            z: 'config'
         },
         default: {
             sockets: DEFAULT_SOCKETS,
@@ -49,7 +50,7 @@ export default function parseArgs(argv) {
             sockPerProc: 5,
             time: Infinity
         },
-        string: ["dst", "src"], 
+        string: ["dst", "src", "config"], 
     });
 
     // --- HELP ---
@@ -74,6 +75,8 @@ export default function parseArgs(argv) {
     }
 
     // --- CONVERSIONS ---
+    const config = args.config;
+    if (config) return { config };
     const dstIp = args.dst;
     const srcIp = args.src;
     const n = parseInt(args.sockets);
