@@ -1,0 +1,2 @@
+PCPP_VER = 25.05
+DPDK_VER = 24.11.3

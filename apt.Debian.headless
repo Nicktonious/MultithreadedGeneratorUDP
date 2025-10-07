@@ -1,0 +1,7 @@
+git make curl fzf
+doxygen clang-format
+build-essential pkg-config cmake g++ gdb valgrind
+flex bison ragel libreadline-dev
+tshark tcpdump sshpass nload
+libpcap-dev libnuma-dev dpdk-dev libdpdk-dev libdbus-c++-dev libibverbs-dev
+python3 python3-venv python3-autopep8 python3-ply
