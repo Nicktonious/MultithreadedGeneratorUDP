@@ -1,0 +1,45 @@
+{
+    "id": 0,
+    "workTime": 60,
+    "sysChannel": {
+        "host": "10.101.1.52:9999"
+    },
+    "groups": [
+        {
+            "name": "1d",
+            "filesPath": "./1d_sensors.zip",
+            "loop": false,
+            "freq": 1000,
+            "packetSize": 8192,
+            "sensors": [
+                {
+                    "name": "sensName1",
+                    "src": "10.110.100.1:40000",
+                    "dst": "10.120.101.11:50000",
+                    "vlan": "1001"
+                },
+                {
+                    "name": "sensName2",
+                    "src": "10.110.100.2:40000",
+                    "dst": "10.120.101.11:50001",
+                    "vlan": "1002"
+                }
+            ]
+        },
+        {
+            "name": "2d",
+            "filesPath": "./2d_sensors.zip",
+            "loop": false,
+            "freq": 1000,
+            "packetSize": 8192,
+            "sensors": [
+                {
+                    "name": "sensName1",
+                    "src": "10.110.100.21:40000",
+                    "dst": "10.120.101.11:51000",
+                    "vlan": "2001"
+                }
+            ]
+        }
+    ]
+}

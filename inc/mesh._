@@ -1,0 +1,119 @@
+#pragma once
+
+#include <assert.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <chrono>
+#include <iostream>
+#include <sstream>
+#include <thread>
+
+/// @brief NIC representation
+class Eth : public IO {
+    static bool initialized;
+
+    int id;               ///< DPDK port id (for opened @ref dev)
+    std::string name;     ///< DPDK port name
+    int mtu;              ///< MTU packet size
+    std::string pmdname;  ///< driver name
+    int pmdtype;          ///< driver id
+
+    bool up;      ///< @ref linkStatus -> linkUp
+    int speed;    ///< @ref linkStatus -> linkSpeedMbps
+    bool duplex;  ///< @ref linkStatus -> linkDuplex
+    pcpp::DpdkDevice::LinkStatus linkStatus;  ///< link status info
+
+   public:
+    pcpp::DpdkDevice *dev;                   ///< DPDK device id
+    Eth(int port);                           ///< create nic with DPDK index
+    static bool init();                      // int argc, char *argv[]);
+    static void list();                      ///< list available nic's
+    void open();                             ///< open port with Rx/Tx
+    void close();                            ///< shutdown
+    pcpp::DpdkDevice::LinkStatus &status();  ///< update @ref linkStatus
+    std::string val();                       ///<
+};
+
+class Recv : public IO, pcpp::DpdkWorkerThread {
+    Eth *_eth;
+    pcpp::DpdkDevice *_dev;
+    uint32_t _coreId;
+    bool _run;
+
+   public:
+    Recv(Eth *);
+    bool run(uint32_t coreId);
+    void stop();
+    uint32_t getCoreId() const;
+};
+
+class Send : public IO, pcpp::DpdkWorkerThread {
+    Eth *_eth;
+    pcpp::DpdkDevice *_dev;
+    uint32_t _coreId;
+    bool _run;
+    uint16_t _port;   ///< target port 40000..40024
+    size_t _counter;  ///< sent packets counter
+    static pcpp::Packet
+        *packet[CAMERAS];  ///< sending packet single-init instance
+
+   public:
+    Send(Eth *eth, uint16_t port = PORT);
+    bool run(uint32_t coreId);
+    static void init();  ///< init @ref packet
+    void stop();
+    uint32_t getCoreId() const;
+    static void multi(Eth *);  ///< run multitreaded
+    void pps(int c);           ///< collect statistics for single sneder
+    static void avg();         ///< print statistics for all @ref camera s
+};
+
+
+// extern pcpp::EthLayer eth_arp;  ///< Ethernet layer for ARP requests
+// extern pcpp::EthLayer eth_ip;   ///< Ethernet layer for UDP send
+
+// extern pcpp::ArpLayer arp_layer;    ///< ARP requests
+// extern pcpp::IPv4Layer ipv4_layer;  ///< IPv4 layer
+// extern pcpp::UdpLayer udp_layer;    ///< UDP layer
+
+/// @brief Gratuitous ARP sender
+class Garp : public IO, pcpp::DpdkWorkerThread {
+    Eth *_eth;
+    pcpp::DpdkDevice *_dev;
+    uint32_t _coreId;
+    bool _run;
+    size_t _count;
+
+   public:
+    Garp(Eth *);
+    bool run(uint32_t coreId);
+    void stop();
+    uint32_t getCoreId() const;
+};
+
+/// @}
+
+/// @defgroup data data
+/// @brief customer data model
+/// @{
+
+#include <thread>
+
+struct Camera {
+    Send *sender;        ///< DPDK sender (configured)
+    std::thread thread;  ///< sending thread
+    std::thread pps;     ///< statistics collector
+    size_t avg;          ///< average pps / camera
+};
+
+extern Garp *garper;           ///< @ref Garp sender
+extern std::thread *garper_t;  ///< @ref Garp sender (periodic thread)
+
+extern Camera camera[CAMERAS];
+
+
+extern std::vector<pcpp::DpdkWorkerThread *> workers;  ///< DPDK workers
+
+/// @}

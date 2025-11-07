@@ -1,0 +1,72 @@
+#include "mesh.hpp"
+
+pcpp::MBufRawPacket *mbufArr[mbufArr_sz] = {};
+
+bool Send::run(uint32_t coreId) {
+    // mbufArr[0]->initFromRawPacket(packet[coreId].getRawPacket(), _dev);
+
+    // mbufArr[_coreId]->initFromRawPacket(packet.getRawPacket(), _dev);
+    // for (int i = 0; i < mbufArr_sz; i++)
+    //     mbufArr[i]->initFromRawPacket(packet.getRawPacket(), _dev);
+    // appendData(eth_ip.getData(), eth_ip.getDataLen());
+    // pcpp::MBufRawPacket(&packet);
+
+    while (true) {
+        if (!_run) break;
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(SEND_INTERVAL_MS));
+    }
+
+    return true;
+}
+
+void Send::avg() {
+    while (true) {
+        std::cerr << "\033c";  //"\n";
+        for (int c = 11; c < CAMERAS; c++) {
+            std::cerr << camera[c].sender->_coreId << '/' << coreNum << '_'
+                      << camera[c].sender->_port << ':' << camera[c].avg
+                      << "\n";
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    }
+}
+
+// std::vector<pcpp::DpdkWorkerThread *> workers;
+
+void Send::multi(Eth *eth) {
+    Send::init();
+
+    garper = new Garp(eth);
+    garper_t = new std::thread(&Garp::run, garper, 0);
+
+    for (int c = 0; c < CAMERAS; c++) {
+        camera[c].sender = new Send(eth, PORT + c);
+        camera[c].pps = std::thread(&Send::pps, camera[c].sender, c);
+    }
+    avg_t = new std::thread(Send::avg);
+
+    // for (int c = 11; c < CAMERAS; c++) {  //
+    //     workers.push_back(camera[c].sender);
+    // }
+    // assert(pcpp::DpdkDeviceList::getInstance().startDpdkWorkerThreads(coreMask,
+    //                                                                   workers));
+
+    while (true) {
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(SEND_INTERVAL_MS));
+        for (int c = 11; c < CAMERAS; c++) {  //
+            camera[c].sender->run(c);
+        }
+    }
+
+    garper_t->join();
+}
+
+void Send::pps(int c) {
+    while (true) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        camera[c].avg = _counter;  //(camera[c].avg + _counter) / 2;
+        _counter = 0;
+    }
+}

@@ -1,0 +1,44 @@
+{
+    "baseCPUIndex": 0,
+    "groups": [
+        {
+            "name": "g1d",
+            "duration": 60,
+            "loop": false,
+            "freq": 1000,
+            "packetSize": 18496,
+            "sensors": [
+                {
+                    "name": "sensName1",
+                    "src": "10.110.100.1:40000",
+                    "dst": "10.120.101.11:50000",
+                    "sn": 2531001,
+                    "dataPath": "./data/PLT4600_gen_1/S_1_1.gen"
+                },
+                {
+                    "name": "sensName2",
+                    "src": "10.110.100.2:40000",
+                    "dst": "10.120.101.11:50001",
+                    "sn": "2531002",
+                    "dataPath": "./data/PLT4600_gen_1/S_1_2.gen"
+                }
+            ]
+        },
+        {
+            "name": "g2d",
+            "duration": 60,
+            "loop": false,
+            "freq": 1000,
+            "packetSize": 18496,
+            "sensors": [
+                {
+                    "name": "sensName3",
+                    "src": "10.110.100.21:40000",
+                    "dst": "10.120.101.11:51000",
+                    "sn": 2531003,
+                    "dataPath": "./data/PLT4600_gen_1/S_1_3.gen"
+                }
+            ]
+        }
+    ]
+}

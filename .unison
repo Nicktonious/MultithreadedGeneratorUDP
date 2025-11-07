@@ -1,0 +1,19 @@
+# Название профиля (опционально)
+label = MultithreadedGeneratorUDP sync
+
+# Корневые директории
+root = /home/dponyatov/MultithreadedGeneratorUDP 
+root = ssh://dev01@10.120.100.39//home/dev01/MultithreadedGeneratorUDP
+
+# Автоматизация
+auto   = true
+batch  = true
+prefer = newer
+
+# Игнорирование специфичных файлов и кэшей
+# ignore = Name {.unison}
+ignore = Name {.git}
+ignore = Name {*~,*.log,*.sw?}
+ignore = Name {bin,doc/html,tmp,ref}
+ignore = Name {node_modules,.cache}
+ignore = Name {*.pyc,__pycache__}

@@ -1,0 +1,16 @@
+{
+    "Device_ID": 631,
+    "Protocol_Version_Major": 1,
+    "Protocol_Version_Minor": 2,
+    "Flags": 0,
+    "License_hash": 0,
+    "Exposure_time_ns": 200000,
+    "Laser_value": 50,
+    "Alignment_with_sensor": 0,
+    "Scaling_factor_mm_per_discr": 0.02,
+    "ZMR_mm_x0_1": 1600,
+    "XEMR_mm_x0_1": 4600,
+    "Bytes_per_point": 4,
+    "Reserved_38_43": [0, 0, 0, 0, 0, 0],
+    "Points": 4608
+}

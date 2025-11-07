@@ -1,0 +1,8 @@
+git make curl fzf
+code meld doxygen graphviz clang-format
+g++ gdb cmake pkg-config
+flex bison ragel libreadline-dev
+python3 python3-venv python3-pytest python3-autopep8
+tshark net-tools arping
+libpcap-dev dpdk-dev libdpdk-dev
+npm
