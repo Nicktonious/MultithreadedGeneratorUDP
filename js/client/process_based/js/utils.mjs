@@ -56,8 +56,6 @@ function prepareIPCDir(fullIPCAddr) {
         }
 }
 
-import { exec } from "child_process";
-
 /**
  * Устанавливает длину очереди txqueuelen на интерфейсе
  * @param {number} [delayMs=2] - Задержка в мс

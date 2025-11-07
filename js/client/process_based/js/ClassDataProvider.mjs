@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { exec, execSync } from 'child_process';
+import { execSync } from 'child_process';
 
 /**
  * @typedef TypeFile
@@ -20,11 +20,7 @@ import { exec, execSync } from 'child_process';
  */
 
 class DataProvider {
-    constructor(config) {
-        this.config = config;
-        this.sensorsData = {};
-        this.intervals = {};
-        this.iterationCounters = {};
+    constructor() {
     }
 
     /**
@@ -33,35 +29,26 @@ class DataProvider {
      * @param {string} zipFilePath 
      * @returns {string}
      */
-    async ExtractZipArchive(zipFilePath) {
+    ExtractZipArchive(zipFilePath, extractPath) {
         try {
-            // Получаем имя архива без расширения для создания папки
+
             const archiveName = path.basename(zipFilePath, '.zip');
-            const extractPath = path.join('./temp', archiveName);
+            const fullExtractPath = path.join(extractPath, archiveName);
 
-            // Создаем папку для распаковки, если она не существует
-            if (!fs.existsSync('./temp')) {
-                fs.mkdirSync('./temp', { recursive: true });
+            if (!fs.existsSync(fullExtractPath)) {
+                fs.mkdirSync(fullExtractPath, { recursive: true });
             }
 
-            if (!fs.existsSync(extractPath)) {
-                fs.mkdirSync(extractPath, { recursive: true });
-            }
-
-            // Команда для распаковки (работает на Linux/Mac и Windows с установленным unzip)
-            let command;
-            if (process.platform === 'win32') {
-                command = `powershell -command "Expand-Archive -Path '${zipFilePath}' -DestinationPath '${extractPath}'"`;
-            } else {
-                command = `unzip -o "${zipFilePath}" -d "${extractPath}"`;
-            }
-
-            console.log(`Extracting ${zipFilePath} to ${extractPath}...`);
+            const command = process.platform === 'win32' 
+                ? `powershell -command "Expand-Archive -Path '${zipFilePath}' -DestinationPath '${fullExtractPath}'"`
+                : `unzip -o "${zipFilePath}" -d "${fullExtractPath}"`;
+    
+            console.log(`Extracting ${zipFilePath} to ${fullExtractPath}...`);
 
             execSync(command);
 
-            console.log(`Successfully extracted to ${extractPath}`);
-            return extractPath;
+            console.log(`Successfully extracted to ${fullExtractPath}`);
+            return fullExtractPath;
 
         } catch (error) {
             console.error('Error extracting zip archive:', error);
@@ -135,27 +122,24 @@ class DataProvider {
      * @param {string} zipFilePath 
      * @returns {[TypeFile]}
      */
-    ExtractAndReadZip(zipFilePath) {
-        let extractPath = '';
+    ExtractAndReadZip(zipFilePath, extractPath) {
+        let fullExtractPath = '';
         try {
-            // Распаковываем архив
-            extractPath = this.ExtractZipArchive(zipFilePath);
 
-            // Читаем все файлы из распакованной директории
-            const files = this.ReadAllFiles(extractPath);
-
-            console.log(`Found ${files.length} files in ${extractPath}`);
+            fullExtractPath = this.ExtractZipArchive(zipFilePath, extractPath);
+            const files = this.ReadAllFiles(fullExtractPath);
+        
+            console.log(`Found ${files.length} files in ${fullExtractPath}`);
             return files;
 
         } catch (error) {
             console.error('Error in extractAndReadZip:', error);
             throw error;
-        } finally {
-            if (extractPath.length) this.CleanupTempFiles(extractPath);
-        }
+        } /*finally {
+            if (fullExtractPath.length) this.CleanupTempFiles(fullExtractPath);
+        }*/
     }
 
-    // 4. Функция для очистки временных файлов
     async CleanupTempFiles(extractPath) {
         try {
             if (fs.existsSync(extractPath)) {
@@ -180,62 +164,11 @@ class DataProvider {
         }
         return packets;
     }
-    
-    GetData() {
-        return Object.fromEntries(
-            Object.keys(this.sensorsData)
-            .map(groupName => [groupName, this.GetPacketVectors(groupName)])
-        );
+
+    GetFullExtractPath(zipFilePath, extractPath) {
+        hiveName = path.basename(zipFilePath, '.zip');
+            const fullExtractPath = path.join(extractPath, archiveName);
     }
-    /**
-     * 
-     * @param {string} groupName 
-     * @returns {}
-     */
-    GetPacketVectors(groupName) {
-        const groupData = this.sensorsData[groupName];
-        const names = groupData.map(sensor => sensor.name);
-        const sensorsCount = groupData.length;
-
-        const matrix = new Array(groupData[0].length);
-
-        for (let packetIndex = 0; packetIndex < maxPackets; packetIndex++) {
-            const row = new Array(sensorsCount);
-
-            for (let sensorIndex = 0; sensorIndex < sensorsCount; sensorIndex++) {
-                if (packetIndex < packetsLengths[sensorIndex]) {
-                    row[sensorIndex] = groupData[sensorIndex].packets[packetIndex];
-                } else {
-                    row[sensorIndex] = null;
-                }
-            }
-
-            matrix[packetIndex] = row;
-        }
-
-        return {
-            matrix: matrix,
-            names: names
-        };
-    }
-
-    // Метод для инициализации данных
-    async Init() {
-        for (const group of this.config.groups) {
-            try {
-                console.log(`Loading group: ${group.name}`);
-                const files = this.ExtractAndReadZip(group.path);
-                for (let f of files) f.packets = this.splitIntoPackets(f.data, group.packetSize);
-
-                this.sensorsData[group.name] = files;
-
-                console.log(`Group ${group.name} loaded: ${files.length} sensors`);
-
-            } catch (error) {
-                console.error(`Error loading group ${group.name}:`, error);
-            }
-        }
-    }    
 }
 
 export default DataProvider;
