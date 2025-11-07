@@ -9,4 +9,4 @@ js/client/process_based/js/build
 /temp/*
 *.zip
 *.7z
-/00__raw/*
+**/00__raw/*
