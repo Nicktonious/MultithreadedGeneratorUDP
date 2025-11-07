@@ -1,3 +1,6 @@
+import { existsSync, readFileSync, readdirSync, statSync } from "fs";
+import path, { join } from "path";
+import { incrementIp } from "./utils.mjs";
 /**
  * @typedef {Object} SysChannel
  * @property {string} host - Адрес системного канала в формате "ip:port".
@@ -8,6 +11,7 @@
  * @property {string} name - Имя сенсора.
  * @property {string} src - Источник данных сенсора (ip:port).
  * @property {string} [dst] - (Опционально) индивидуальный адрес назначения сенсора (ip:port).
+ * @property {string} [sn] - серийный номер (может игнорироваться).
  * @property {string} [vlan] - VLAN (может игнорироваться).
  */
 
@@ -16,7 +20,8 @@
  * @property {string} name - Имя группы сенсоров.
  * @property {string} filesPath - Путь до zip-файла с данными сенсоров.
  * @property {boolean} loop - Режим повторного воспроизведения.
- * @property {number} freq - Частота передачи (мс).
+ * @property {number} [duration] - Время генерации данных (сек).
+ * @property {number} freq - Частота передачи (hz).
  * @property {number} packetSize - Размер пакета.
  * @property {string} [dst] - Общий адрес назначения группы (ip:port).
  * @property {Sensor[]} sensors - Список сенсоров.
@@ -24,22 +29,18 @@
 
 /**
  * @typedef {Object} Config
- * @property {number} id - Идентификатор конфигурации.
- * @property {number} workTime - Время работы в секундах.
+ * @property {number} duration - Время работы в секундах.
  * @property {SysChannel} sysChannel - Системный канал.
  * @property {Group[]} groups - Список групп сенсоров.
  */
 
-import { existsSync, readFileSync } from "fs";
-import { resolve } from "path";
-
 /**
  * Загружает конфигурацию из JSON файла.
  * @param {string} filePath - Путь к файлу конфигурации.
- * @returns {Config} Объект конфигурации.
+ * @returns {object} Объект конфигурации.
  */
 function loadConfig(filePath) {
-    const absPath = resolve(filePath);
+    const absPath = path.resolve(filePath);
     if (!existsSync(absPath)) {
         throw new Error(`Файл конфигурации не найден: ${absPath}`);
     }
@@ -60,12 +61,12 @@ function loadConfig(filePath) {
 function validateConfig(config) {
     const errors = [];
 
-    if (typeof config.id !== "number") {
+    /*if (typeof config.id !== "number") {
         errors.push("Поле 'id' должно быть числом.");
-    }
+    }*/
 
-    if (typeof config.workTime !== "number" || config.workTime <= 0) {
-        errors.push("Поле 'workTime' должно быть положительным числом.");
+    if (typeof config.duration !== "number" || config.duration <= 0) {
+        errors.push("Поле 'duration' должно быть положительным числом.");
     }
 
     if (!config.sysChannel || typeof config.sysChannel.host !== "string") {
@@ -102,9 +103,7 @@ function validateConfig(config) {
 
                     // Проверка наличия dst либо на уровне сенсора, либо на уровне группы
                     if (!sensor.dst && !group.dst) {
-                        errors.push(
-                            `Group[${gIndex}].Sensor[${sIndex}]: отсутствует dst (ни в сенсоре, ни в группе).`
-                        );
+                        errors.push(`Group[${gIndex}].Sensor[${sIndex}]: отсутствует dst (ни в сенсоре, ни в группе).`);
                     }
                 });
             }
@@ -113,4 +112,118 @@ function validateConfig(config) {
 
     return { valid: errors.length === 0, errors };
 }
-export { loadConfig, validateConfig }
+
+/**
+ * @function
+ * @description Преобразует пользовательский конфиг в конфиг работы ядра генератора.  
+ * @param {Config} config 
+ */
+function toIPCConfig(conf, filesDict, additional) {
+    // const getFilenames = (_dataPath) => readdirSync(_dataPath).map(fn => path.resolve(_dataPath, fn));
+    const confCopy = { ...conf };
+    for (const { name: groupName, sensors } of conf.groups) {
+        let dataPath = filesDict[groupName];
+        /*let files = getFilenames(dataPath);
+        while (!files.find(_fn => fn.includes('gen'))) {
+            dataPath = join(dataPath, files[0]);
+        }
+        if (files.length != sensors.length) return null;*/
+        let gcopy = confCopy.groups.find(g => g.name == groupName);
+        delete gcopy.filesPath;
+        gcopy.sensors = sensors.map(sens => ({ ...sens, dataPath: findFileRecursively(dataPath, `${sens.name}.gen`) }));
+    }
+    return Object.assign(confCopy, additional);
+}
+
+function createConfiguration(options) {
+    const {
+        dstIp,
+        n,
+        totalBufferSize,
+        srcIp,
+        portBase,
+        endPort,
+        packetSize,
+        baseCPUIndex,
+        freq,
+        spp,
+        infoCh
+    } = options;
+
+    // Проверка обязательных параметров
+    if (!dstIp || !portBase || !n) {
+        throw new Error("Обязательные параметры отсутствуют: dstIp, portBase, n");
+    }
+
+    // Создаем конфигурацию
+    const config = {
+        id: 0,
+        duration: 60,
+        sysChannel: infoCh ? { host: `${infoCh.ip}:${infoCh.port}` } : undefined,
+        groups: []
+    };
+
+    // Создаем единственную группу
+    const group = {
+        name: "sensor_group",
+        filesPath: "./sensors.zip",
+        loop: false,
+        freq: freq || 1000,
+        packetSize: packetSize || 8192,
+        sensors: []
+    };
+
+    // Вычисляем диапазон портов
+    const portRange = endPort - portBase + 1;
+
+    // Создаем датчики
+    for (let i = 0; i < n; i++) {
+        const sensorIndex = i + 1;
+        const srcIpIncremented = incrementIp(srcIp, i);
+        const portIndex = i % portRange;
+        const dstPort = portBase + portIndex;
+
+        const sensor = {
+            name: `sensName${sensorIndex}`,
+            src: `${srcIpIncremented}:40000`,
+            dst: `${dstIp}:${dstPort}`,
+        };
+
+        group.sensors.push(sensor);
+    }
+
+    config.groups.push(group);
+    return config;
+}
+
+/**
+ * Recursively searches for a file within a given directory and its subdirectories.
+ * @param {string} startPath The starting directory to search from.
+ * @param {string} fileName The name of the file to find.
+ * @returns {string | null} The full path to the file if found, otherwise null.
+ */
+function findFileRecursively(startPath, fileName) {
+    try {
+        const files = readdirSync(startPath);
+
+        for (const file of files) {
+            const fullPath = path.join(startPath, file);
+            const stats = statSync(fullPath);
+
+            if (stats.isFile() && file === fileName) {
+                return fullPath; // Found the file
+            } else if (stats.isDirectory()) {
+                const foundPath = findFileRecursively(fullPath, fileName);
+                if (foundPath) {
+                    return foundPath; // Found the file in a subdirectory
+                }
+            }
+        }
+        return null; // File not found in this branch
+    } catch (err) {
+        console.error(`Error reading directory ${startPath}:`, err);
+        return null;
+    }
+}
+
+export { loadConfig, validateConfig, createConfiguration, toIPCConfig }

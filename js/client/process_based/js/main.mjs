@@ -1,137 +1,77 @@
-import { exec, execSync, fork } from 'node:child_process';
-import ZMQPublisher from './ClassZMQServer.mjs';
+import { fork } from 'node:child_process';
 import parseArgs from './argsParser.mjs';
-import { StartZMQGen, StopZMQGen } from './ClockGenWrapper.mjs';
 import ControlChannel from './ClassControlChannel.mjs';
-import { getTxSent, incrementIp, sleep, taskset } from './utils.mjs';
-import createConfiguration from './createTempConf.mjs';
-import { loadConfig } from './configParser.mjs';
+import { loadConfig, toIPCConfig } from './configParser.mjs';
 import { StatsReceiver } from './Stats.mjs';
-import DataAsm from './ClassDataAsm.mjs';
 import DataProvider from './ClassDataProvider.mjs';
+const SYSCONF_PATH = './sysconf.json';
+// MAIN
+const args = parseArgs(process.argv.slice(2));
+const { config: configPath } = args;
 
-const GB_in_bytes = 1_073_741_824;
+const sysConf = loadConfig(SYSCONF_PATH) ?? { coreProc: '' };
+/**
+ * @type {import('./configParser.mjs').Config}
+ */
+const userConf = loadConfig(configPath);
+const dataProvider = new DataProvider();
 
-function getSocketsInfo({ n, srcIp, portBase, endPort, totalBufferSize }) {
-    return Array(n).fill().map((_, i) => ({
-        port: portBase + i % (endPort - portBase + 1),
-        srcIp: incrementIp(srcIp, i),
-        portBase,
-        socketIndex: i,
-        bufferSize: Math.floor(totalBufferSize / n)
-    }));
+// extract zips and save path to each group's data 
+let filesDict = userConf.groups.reduce((pr, curr) => {
+    pr[curr.name] = dataProvider.ExtractZipArchive(curr.filesPath, './temp');
+    return pr;
+}, {});
+
+const ipcConf = toIPCConfig(userConf, filesDict, { baseCPUIndex: 0 });
+
+const generator = fork(sysConf.coreProc, [JSON.stringify(ipcConf)], {
+    stdio: ['inherit', 'inherit', 'inherit', 'ipc']
+});
+
+const stats = new StatsReceiver([generator]).Start();
+
+console.log(`Main Process ${process.pid} running on Core ${baseCPUIndex}`);
+
+let ctrlCh = infoCh ? new ControlChannel(infoCh) : undefined;
+
+if (ctrlCh) try {
+    await ctrlCh.Connect();
+    await ctrlCh.Register();
+
+    console.log('Registered');
+
+    console.log(userConf.groups[0].sensors.map(s => s.dst));
+    await ctrlCh.Start(userConf);
+
+} catch (e) {
+    console.log(e);
 }
 
-async function main() {
-    const args = parseArgs(process.argv.slice(2));
-    const { dstIp, n, totalBufferSize, srcIp,
-        portBase, packetSize, baseCPUIndex,
-        freq, spp, infoCh, endPort, time, config: configPath } = args;
-    
-    console.log(`Starting client with:
-    - Server: ${dstIp}
-    - Total SendBufferSize: ${(totalBufferSize / GB_in_bytes).toFixed(2)} GB
-    - Sockets: ${n}
-    - Packet size: ${(packetSize / 1024).toFixed(2)} KB`);
+// Обработка SIGINT
+process.on('SIGINT', async () => {
+    await INT_handler({ generator, stats, ctrlCh });
+});
 
-    const conf = configPath ? loadConfig(configPath) : createConfiguration(args);
 
-    const dataProvider = new DataProvider(conf);
-    // const socketInfoList = getSocketsInfo(args);
+async function INT_handler({ generator, stats, ctrlCh }) {
+    // processes.forEach(child => child.send({ com: 'tx_packets' }));
+    console.log('INTERRUPT signal');
 
-    const childSenders = [];
-    const childAsms = [];
-
-    const packets = Array(Math.ceil(n / spp)).fill(-1);
-
-    for (let group of conf.groups) {
-        let sensors = group.sensors.map((s, i) => Object.assign(s, {
-            socketIndex: i,
-            bufferSize: Math.floor(totalBufferSize / n),
-            path: dataProvider.ExtractZipArchive(group.filesPath),
-            packetSize: group.packetSize,
-        }));
-
-        for (let i = 0; sensors.length > 0; i++) {
-            let args = {
-                groupName: group.name,
-                packetSize: group.packetSize,
-                sensors: sensors.splice(0, spp),
-                baseCPUIndex: 0,
-                threadIndex: i
-            }
-            
-            /*childAsms.push(
-                fork('./js/client/process_based/js/childProcessASM.mjs', [JSON.stringify(args)], {
-                    stdio: ['inherit', 'inherit', 'inherit', 'ipc']
-                })
-            );
-            args.baseCPUIndex = 0;*/
-            
-            childSenders.push(
-                fork('./js/client/process_based/js/childProcess.mjs', [JSON.stringify(args)], {
-                    stdio: ['inherit', 'inherit', 'inherit', 'ipc']
-                })
-            );
-        }
-    }
-    const stats = new StatsReceiver(childSenders).Start();
-
-    taskset(baseCPUIndex, true);
-    console.log(`Main Process ${process.pid} running on Core ${baseCPUIndex}`);
-
-    const generator = await new ZMQPublisher({ address: 'ipc:///tmp/zmq_clock.ipc', n, m: spp }).Init();
-
-    let ctrlCh = infoCh ? new ControlChannel(infoCh) : undefined;
-
-    if (ctrlCh) try {
-        await ctrlCh.Connect();
-        await ctrlCh.Register();
-
-        console.log('Registered');
-
-        console.log(conf.groups[0].sensors.map(s => s.dst));
-        await ctrlCh.Start(conf);
-
-    } catch (e) {
-        console.log(e);
-    }
-
-    // Обработка SIGINT
-    process.on('SIGINT', async () => {
-        // processes.forEach(child => child.send({ com: 'tx_packets' }));
-        console.log('INTERRUPT signal');
-
-        generator.Stop();
-
-        setTimeout(async () => {
-            childSenders.concat(childAsms).filter(child => !child.killed).forEach(child => {
-                try {
-                    child.kill('SIGINT');
-                } catch (err) { }
-            });
-
-            const tx_stats = await stats.GetStats();
-            const tx_sent = tx_stats.reduce((p, c) => p + c, 0);
-            console.log(`Sent ${tx_sent} packets`);
-            console.log(`Stats: ${stats.packets}\ntotal: ${tx_sent}`);
-
-            if (ctrlCh) try {
-                ctrlCh.Packets(tx_sent);
-                await ctrlCh.Stop();
-                ctrlCh.Close();
-            } catch {
-                console.log('Failed to send Stop command');
-            }
-            process.exit();
-        }, 3000);
-    });
+    if (!generator.killed) generator.kill('SIGINT');
 
     setTimeout(async () => {
+        const tx_stats = await stats.GetStats();
+        const tx_sent = tx_stats.reduce((p, c) => p + c, 0);
+        console.log(`Sent ${tx_sent} packets`);
+        console.log(`Stats: ${stats.packets}\ntotal: ${tx_sent}`);
 
-        const tickLimit = time * freq;
-        await generator.Run(freq, tickLimit, () => process.kill(process.pid, 'SIGINT'));
-    }, 6000);
+        if (ctrlCh) try {
+            ctrlCh.Packets(tx_sent);
+            await ctrlCh.Stop();
+            ctrlCh.Close();
+        } catch {
+            console.log('Failed to send Stop command');
+        }
+        process.exit();
+    }, 3000);
 }
-
-main();
