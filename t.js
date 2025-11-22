@@ -1,3 +1,7 @@
+const targetSpeed = 7;
+const packetSize = 8192;
+const packetsPerSec = targetSpeed * 134217728 / packetSize;
+
 const CalculateTiming = (iterationsPerSecond) => {
     const MIN_PERIOD = 0.1; // Минимальный допустимый период в миллисекундах
     const MULTIPLIER = 10;   // Во сколько раз увеличиваем период при агрегации
@@ -16,4 +20,5 @@ const CalculateTiming = (iterationsPerSecond) => {
     return { period, k };
 }
 
-console.log(CalculateTiming(81920 ));
+const { period, k } = CalculateTiming(packetsPerSec);
+console.log(1000 / period * k);

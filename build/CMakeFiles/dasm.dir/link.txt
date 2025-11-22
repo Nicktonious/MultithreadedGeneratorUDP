@@ -1,0 +1,1 @@
+/usr/bin/c++  -pthread CMakeFiles/dasm.dir/child_proc_asm.cpp.o CMakeFiles/dasm.dir/data_asm.cpp.o -o dasm  -lzmq -ljsoncpp -lpthread -lrt -ldl 

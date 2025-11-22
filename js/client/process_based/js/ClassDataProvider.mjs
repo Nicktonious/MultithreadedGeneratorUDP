@@ -2,15 +2,37 @@ import fs from 'fs';
 import path from 'path';
 import { exec, execSync } from 'child_process';
 
+/**
+ * @typedef TypeFile
+ * @property {string} fileName
+ * @property {string} data
+ * @property {string} fullPath
+ * @property {string} size
+ */
+
+/**
+ * @typedef TypeGroup
+ * @property {string} name: "s",
+ * @property {string} path: "js/client/process_based/js/s.zip",
+ * @property {number} freq: 10, // 10 Hz
+ * @property {number} packetSize: 1
+ * @property {[Buffer]} packets
+ */
+
 class DataProvider {
     constructor(config) {
-        this.groups = config.groups;
+        this.config = config;
         this.sensorsData = {};
         this.intervals = {};
         this.iterationCounters = {};
     }
 
     // 1. Функция для распаковки zip архива через exec
+    /**
+     * 
+     * @param {string} zipFilePath 
+     * @returns {string}
+     */
     async ExtractZipArchive(zipFilePath) {
         try {
             // Получаем имя архива без расширения для создания папки
@@ -49,7 +71,11 @@ class DataProvider {
         }
     }
 
-    // 2. Функция для рекурсивного чтения всех файлов из директории
+    /**
+     * @description Функция для рекурсивного чтения всех файлов из директории
+     * @param {string} directoryPath 
+     * @returns {[TypeFile]}
+     */
     async ReadAllFiles(directoryPath) {
         const files = [];
 
@@ -106,15 +132,19 @@ class DataProvider {
         }
     }
 
-    // 3. Комбинированная функция: распаковать и прочитать все файлы
-    async ExtractAndReadZip(zipFilePath) {
+    /**
+     * @description Комбинированная функция: распаковать и прочитать все файлы
+     * @param {string} zipFilePath 
+     * @returns {[TypeFile]}
+     */
+    ExtractAndReadZip(zipFilePath) {
         let extractPath = '';
         try {
             // Распаковываем архив
-            extractPath = await this.ExtractZipArchive(zipFilePath);
+            extractPath = this.ExtractZipArchive(zipFilePath);
 
             // Читаем все файлы из распакованной директории
-            const files = await this.ReadAllFiles(extractPath);
+            const files = this.ReadAllFiles(extractPath);
 
             console.log(`Found ${files.length} files in ${extractPath}`);
             return files;
@@ -123,12 +153,12 @@ class DataProvider {
             console.error('Error in extractAndReadZip:', error);
             throw error;
         } finally {
-            if (extractPath.length) this.cleanupTempFiles(extractPath);
+            if (extractPath.length) this.CleanupTempFiles(extractPath);
         }
     }
 
     // 4. Функция для очистки временных файлов
-    async cleanupTempFiles(extractPath) {
+    async CleanupTempFiles(extractPath) {
         try {
             if (fs.existsSync(extractPath)) {
                 await fs.promises.rm(extractPath, { recursive: true, force: true });
@@ -139,28 +169,67 @@ class DataProvider {
         }
     }
 
-    // Для использования JS-only версии нужно установить:
-    // npm install extract-zip
-
-    // Метод для разбивки данных на пакеты
+    /**
+     * @description Метод для разбивки данных на пакеты
+     * @param {Buffer} data 
+     * @param {number} packetSize 
+     * @returns 
+     */
     splitIntoPackets(data, packetSize) {
         const packets = [];
         for (let i = 0; i < data.length; i += packetSize) {
-            packets.push(data.slice(i, i + packetSize));
+            packets.push(data.subarray(i, i + packetSize));
         }
         return packets;
+    }
+    
+    GetData() {
+        return Object.fromEntries(
+            Object.keys(this.sensorsData)
+            .map(groupName => [groupName, this.GetPacketVectors(groupName)])
+        );
+    }
+    /**
+     * 
+     * @param {string} groupName 
+     * @returns {}
+     */
+    GetPacketVectors(groupName) {
+        const groupData = this.sensorsData[groupName];
+        const names = groupData.map(sensor => sensor.name);
+        const sensorsCount = groupData.length;
+
+        const matrix = new Array(groupData[0].length);
+
+        for (let packetIndex = 0; packetIndex < maxPackets; packetIndex++) {
+            const row = new Array(sensorsCount);
+
+            for (let sensorIndex = 0; sensorIndex < sensorsCount; sensorIndex++) {
+                if (packetIndex < packetsLengths[sensorIndex]) {
+                    row[sensorIndex] = groupData[sensorIndex].packets[packetIndex];
+                } else {
+                    row[sensorIndex] = null;
+                }
+            }
+
+            matrix[packetIndex] = row;
+        }
+
+        return {
+            matrix: matrix,
+            names: names
+        };
     }
 
     // Метод для инициализации данных
     async Init() {
-        for (const group of this.groups) {
+        for (const group of this.config.groups) {
             try {
                 console.log(`Loading group: ${group.name}`);
-                const files = await this.readZipArchive(group.path);
-                
-                this.sensorsData[group.name] = files.map(file => {
-                    return this.splitIntoPackets(file.data, group.packetSize);
-                });
+                const files = this.ExtractAndReadZip(group.path);
+                for (let f of files) f.packets = this.splitIntoPackets(f.data, group.packetSize);
+
+                this.sensorsData[group.name] = files;
 
                 console.log(`Group ${group.name} loaded: ${files.length} sensors`);
 
@@ -185,59 +254,7 @@ class DataProvider {
         console.log(`Sending to ${topic}, packet size: ${packet.length} bytes`);
     }
 
-    // Функция Start
-    start() {
-        for (const group of this.groups) {
-            if (!this.sensorsData[group.name]) {
-                console.warn(`Group ${group.name} not initialized, skipping`);
-                continue;
-            }
-
-            this.iterationCounters[group.name] = 0;
-
-            this.intervals[group.name] = setInterval(() => {
-                const iteration = this.iterationCounters[group.name]++;
-                const sensors = this.sensorsData[group.name];
-
-                for (let i = 0; i < sensors.length; i++) {
-                    const sensorPackets = sensors[i];
-
-                    // Берем j-й пакет (где j = iteration % количество пакетов)
-                    const packetIndex = iteration % sensorPackets.length;
-
-                    if (packetIndex < sensorPackets.length) {
-                        try {
-                            // Создаем копию пакета для модификации
-                            const packet = Buffer.from(sensorPackets[packetIndex]);
-
-                            // Записываем номер итерации в позицию 20
-                            const modifiedPacket = this.writeUint32(packet, 20, iteration);
-
-                            // Отправляем преобразованный пакет
-                            const topic = `${group.name}/sensor${i + 1}`;
-                            this.send(topic, modifiedPacket);
-
-                        } catch (error) {
-                            console.error(`Error processing sensor ${i} in group ${group.name}:`, error);
-                        }
-                    }
-                }
-
-                console.log(`Group ${group.name} iteration ${iteration} completed`);
-
-            }, 1000 / (group.freq || 1)); // freq - частота в Hz, преобразуем в интервал в ms
-        }
-    }
-
-    // Метод для остановки всех интервалов
-    stop() {
-        for (const groupName in this.intervals) {
-            clearInterval(this.intervals[groupName]);
-        }
-        this.intervals = {};
-        this.iterationCounters = {};
-        console.log('All intervals stopped');
-    }
+    
 }
 
 // Пример использования:
@@ -276,7 +293,5 @@ async function main() {
 
 
 main();
-// Для использования нужно установить зависимости:
-// npm install yauzl
 
-// export default DataProvider;
+export default DataProvider;

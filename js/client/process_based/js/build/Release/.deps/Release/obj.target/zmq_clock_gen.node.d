@@ -1,0 +1,1 @@
+cmd_Release/obj.target/zmq_clock_gen.node := g++ -o Release/obj.target/zmq_clock_gen.node -shared -pthread -rdynamic -m64  -Wl,-soname=zmq_clock_gen.node -Wl,--start-group Release/obj.target/zmq_clock_gen/zmq_clock_gen.o Release/obj.target/zmq_clock_gen/zmq_timer.o Release/obj.target/node_modules/node-addon-api/nothing.a -Wl,--end-group -lzmq

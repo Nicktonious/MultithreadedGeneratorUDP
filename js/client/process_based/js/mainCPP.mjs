@@ -44,16 +44,16 @@ async function main() {
                 groupName: group.name,
                 packetSize: group.packetSize,
                 sensors: sensors.splice(0, spp),
-                baseCPUIndex,
+                baseCPUIndex: n/spp,
                 threadIndex: i
             }
 
             /*childAsms.push(
-                fork('./js/client/process_based/js/childProcessASM.mjs', [JSON.stringify(args)], {
-                    stdio: ['inherit', 'inherit', 'inherit', 'ipc']
+                spawn('./build/dasm', [JSON.stringify(args)], {
+                    stdio: ['inherit', 'pipe', 'pipe', 'ipc']
                 })
             );*/
-
+            args.baseCPUIndex = 0;
             childSenders.push(
                 spawn('./build/udp_sender', [JSON.stringify(args)], {
                     stdio: ['inherit', 'pipe', 'pipe', 'ipc']
@@ -127,7 +127,7 @@ async function main() {
 
         const tickLimit = time * freq;
         await generator.Run(freq, tickLimit, () => process.kill(process.pid, 'SIGINT'));
-    }, 4000);
+    }, 6000);
 }
 
 main();

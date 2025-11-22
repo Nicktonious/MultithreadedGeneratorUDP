@@ -242,7 +242,7 @@ class SysChannel extends EventEmitter {
             config
         };
 
-        return this._sendCommandWithResponse(command, handler, 1000);
+        return this._sendCommandWithResponse(command, handler, 10000);
     }
 
     /**

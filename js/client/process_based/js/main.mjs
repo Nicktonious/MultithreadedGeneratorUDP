@@ -1,6 +1,6 @@
 import { exec, execSync, fork } from 'node:child_process';
 import setQlen from './setqlen.mjs';
-import ClockGenerator from './ClassZMQServer.mjs';
+import ZMQPublisher from './ClassZMQServer.mjs';
 import parseArgs from './argsParser.mjs';
 import { StartZMQGen, StopZMQGen } from './ClockGenWrapper.mjs';
 import ControlChannel from './ClassControlChannel.mjs';
@@ -8,6 +8,7 @@ import { getTxSent, incrementIp, sleep, taskset } from './utils.mjs';
 import createConfiguration from './createTempConf.mjs';
 import { loadConfig } from './configParser.mjs';
 import { StatsReceiver } from './Stats.mjs';
+import DataAsm from './ClassDataAsm.mjs';
 
 const GB_in_bytes = 1_073_741_824;
 
@@ -33,40 +34,51 @@ async function main() {
     - Sockets: ${n}
     - Packet size: ${(packetSize / 1024).toFixed(2)} KB`);
 
-    /*try {
-        let msgPerSec = freq * n;
-        let res = await setQlen({ qlen: msgPerSec*1.2, iface: 'enp1s0np1' });
-        console.log(`Set txqlen = ${res}`);
-    } catch (e) {
-        console.log(`Error trying to set txqlen: ${e}`);
-    }*/
-    
-    const socketInfoList = getSocketsInfo(args);
+    const conf = createConfiguration(args);
 
-    const processes = [];
+    // const socketInfoList = getSocketsInfo(args);
+
+    const childSenders = [];
+    const childAsms = [];
+
     const packets = Array(Math.ceil(n / spp)).fill(-1);
-    for (let i = 0; socketInfoList.length > 0; i++) {
-        let args = JSON.stringify({
-            serverAddress: dstIp,
-            sockets: socketInfoList.splice(0, spp),
-            threadIndex: i,
-            baseCPUIndex,
-            packetSize
-        });
-        const child = fork('./js/client/process_based/js/childProcess.mjs', [args], {
-            stdio: ['inherit', 'inherit', 'inherit', 'ipc']
-        });
 
-        processes.push(child);
+    for (let group of conf.groups) {
+        let sensors = group.sensors.map((s, i) => Object.assign(s, {
+            socketIndex: i,
+            bufferSize: Math.floor(totalBufferSize / n)
+        }));
+
+        for (let i = 0; sensors.length > 0; i++) {
+            let args = {
+                groupName: group.name,
+                packetSize: group.packetSize,
+                sensors: sensors.splice(0, spp),
+                baseCPUIndex: 0,
+                threadIndex: i
+            }
+            
+            /*childAsms.push(
+                fork('./js/client/process_based/js/childProcessASM.mjs', [JSON.stringify(args)], {
+                    stdio: ['inherit', 'inherit', 'inherit', 'ipc']
+                })
+            );
+            args.baseCPUIndex = 0;*/
+            
+            childSenders.push(
+                fork('./js/client/process_based/js/childProcess.mjs', [JSON.stringify(args)], {
+                    stdio: ['inherit', 'inherit', 'inherit', 'ipc']
+                })
+            );
+        }
     }
-
-    const stats = new StatsReceiver(processes).Start();
+    const stats = new StatsReceiver(childSenders).Start();
 
     taskset(baseCPUIndex, true);
     console.log(`Main Process ${process.pid} running on Core ${baseCPUIndex}`);
 
-    const generator = await new ClockGenerator({ address: 'ipc:///tmp/zmq_clock.ipc' }).Init();
-    
+    const generator = await new ZMQPublisher({ address: 'ipc:///tmp/zmq_clock.ipc', n, m: spp }).Init();
+
     let ctrlCh = infoCh ? new ControlChannel(infoCh) : undefined;
 
     if (ctrlCh) try {
@@ -75,14 +87,12 @@ async function main() {
 
         console.log('Registered');
 
-        const conf = createConfiguration(args);
         console.log(conf.groups[0].sensors.map(s => s.dst));
         await ctrlCh.Start(conf);
-        
+
     } catch (e) {
         console.log(e);
     }
-    
 
     // Обработка SIGINT
     process.on('SIGINT', async () => {
@@ -92,14 +102,14 @@ async function main() {
         generator.Stop();
 
         setTimeout(async () => {
-            processes.filter(child => !child.killed).forEach(child => {
+            childSenders.concat(childAsms).filter(child => !child.killed).forEach(child => {
                 try {
                     child.kill('SIGINT');
                 } catch (err) { }
             });
 
             const tx_stats = await stats.GetStats();
-            const tx_sent = tx_stats.reduce((p, c) => p+c, 0);
+            const tx_sent = tx_stats.reduce((p, c) => p + c, 0);
             console.log(`Sent ${tx_sent} packets`);
             console.log(`Stats: ${stats.packets}\ntotal: ${tx_sent}`);
 
@@ -118,7 +128,7 @@ async function main() {
 
         const tickLimit = time * freq;
         await generator.Run(freq, tickLimit, () => process.kill(process.pid, 'SIGINT'));
-    }, 4000);
+    }, 6000);
 }
 
 main();

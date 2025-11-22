@@ -1,59 +1,74 @@
 import { performance } from 'node:perf_hooks';
 import zmq from 'zeromq';
 import SocketClient from './ClassSocketClient.mjs';
-import buffer from 'node:buffer';
-import net from 'net';
 import crypto from 'crypto';
-/*
-    serverAddress
-    sockets
-    threadIndex
-    baseCPUIndex
-    packetSize
+import { getIncrIPCAddress } from './utils.mjs';
+
+/**
+ * @typedef TypeSensorOpts
+ * @property {string} name
+ * @property {string} src "10.110.100.2:40000",
+ * @property {string} dst
+ * @property {number} socketIndex
+ * @property {number} bufferSize
+ */
+
+/**
+ * @typedef TypeWorkArgs 
+ * @property {string} groupName
+ * @property {number} packetSize
+ * @property {TypeSensorOpts} sensors
+ * @property {number} baseCPUIndex,
+ * @property {number} threadIndex
 */
 
 class Sender {
     clients = null;
-    constructor(workerData, brokerAddress) {
+    /**
+     * @constructor
+     * @param {TypeWorkArgs} workerData 
+     * @param {string} clockAddress 
+     */
+    constructor(workerData, clockAddress, dataAddress) {
         this.workerData = workerData;
-        this.brokerAddress = brokerAddress;
-        this.subscriber = null;
+        this.clockAddress = clockAddress;
+        this.dataAddress = dataAddress;
+        this.dataSub = null;
+        this.clockSub = null;
         this.messageCount = 0;
         this.ticks = 0;
         this.packetSize = workerData.packetSize;
     }
 
     Connect() {
-        this.subscriber = new zmq.Subscriber();
-        // console.log(`trying connect to tcp://localhost:${this.port}`);
-        // this.subscriber.connect(`tcp://localhost:${this.port}`);
-        this.subscriber.connect(this.brokerAddress);
-        this.subscriber.subscribe('clock');
-        console.log(`ZMQ Subscriber подключен к ${this.brokerAddress}`);
+        this.clockSub = new zmq.Subscriber();
+        this.clockSub.connect(this.clockAddress);
+        this.clockSub.subscribe('clock');
+
+        console.log(`[Sender] ZMQ Sub подключен к ${this.clockAddress}`);
     }
 
     async Run({ targetSpeed, isMaxSpeed }) {
         await this.Init()
         this.Connect();
-        return (isMaxSpeed) ? this.RunMaxSpeed() : this.RunFixedSpeed({ targetSpeed });
+        return isMaxSpeed ? this.RunMaxSpeed() : this.RunFixedSpeed({ targetSpeed });
     }
 
     async Init() {
-        const { serverAddress, sockets: socketsInfo } = this.workerData;
+        const { sensors } = this.workerData;
         try {
-            await this.InitClients(socketsInfo, serverAddress);
+            await this.InitClients(sensors);
         } catch (e) {
             console.log(e);
         }
-        // console.log(`inited ${this.clients.length} clients`);
     }
 
-    async InitClients(socketsInfo, serverAddress) {
-        this.clients = socketsInfo.map((socketInfo, i) => new SocketClient(socketInfo, serverAddress));
+    async InitClients(sensors) {
+        this.clients = sensors.map((sensorInfo, i) => new SocketClient(sensorInfo));
         return Promise.all(this.clients.map(client => client.Init()));
     }
 
-    async * ThrottledIndexGen(delayMs, timeoutMs) {
+    async * ThrottledIndexGen(delayMs) {
         while (!this.stopFlag) {
             const t1 = performance.now();
             yield 0;
@@ -90,14 +105,24 @@ class Sender {
         await this.Init();
         this.Connect();
 
-        let payload = crypto.randomBytes(this.packetSize-60-8);
-        for await (const [topic, msg] of this.subscriber) {
+        let payload = crypto.randomBytes(this.packetSize * this.clients.length);
+
+        this.late = 0;
+        for await (let _ of this.clockSub) {
+            let t0 = performance.now();
             for (let i = 0; i < this.clients.length; i++) {
-                this.clients[i].Send(payload);
+                this.clients[i].Send(payload.subarray(i, i + this.packetSize));
                 this.messageCount += 1;
             }
-            this.ticks += 1;
+            for (let i = 0; i < payload.length; i += this.packetSize) {
+                payload.writeUint32BE(this.ticks, i);
+            }
+
+            this.ticks++;
+            if ((performance.now() - t0)*1000 > 100) this.late++;
         }
+
+        // await Promise.all([handleData(), handleTick()]);
     }
 
     async RunFixedSpeed({ targetSpeed }) {
@@ -168,12 +193,6 @@ class Sender {
         this.GracefulShutDown();
     }
 
-    SendMetaMsg(data) {
-        this.sysChannel?.write(JSON.stringify({ timestamp: performance.now(), data }));
-    }
-    ConsoleShow(stdout) {
-        process.stdout.write(`\r${stdout}`); // \r возвращает каретку в начало строки
-    }
     StartGracefulShutDown() {
         console.log(`Start shutdown`);
         this.stopFlag = true;

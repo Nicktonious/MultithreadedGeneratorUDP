@@ -1,0 +1,1 @@
+cmd_Release/zmq_clock_gen.node := ln -f "Release/obj.target/zmq_clock_gen.node" "Release/zmq_clock_gen.node" 2>/dev/null || (rm -rf "Release/zmq_clock_gen.node" && cp -af "Release/obj.target/zmq_clock_gen.node" "Release/zmq_clock_gen.node")

@@ -1,0 +1,1 @@
+/usr/bin/c++  -pthread CMakeFiles/udp_sender.dir/main.cpp.o CMakeFiles/udp_sender.dir/sender.cpp.o CMakeFiles/udp_sender.dir/socket_client.cpp.o -o udp_sender  -lzmq -ljsoncpp -lpthread 

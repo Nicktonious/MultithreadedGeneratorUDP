@@ -4,7 +4,7 @@ project(udp_sender)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_subdirectory(/home/dev01/PcapPlusPlus ${CMAKE_BINARY_DIR}/PcapPlusPlus)
+# add_subdirectory(/home/dev01/PcapPlusPlus ${CMAKE_BINARY_DIR}/PcapPlusPlus)
 
 # Поиск необходимых библиотек
 find_package(PkgConfig REQUIRED)
@@ -14,12 +14,11 @@ pkg_check_modules(JSONCPP REQUIRED jsoncpp)
 
 include_directories(${CMAKE_SOURCE_DIR})
 include_directories(${ZeroMQ_INCLUDE_DIRS} ${JSONCPP_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
-include_directories(
-    /home/dev01/PcapPlusPlus/Pcap++/header/
-    /home/dev01/PcapPlusPlus/Packet++/header/
-    /home/dev01/PcapPlusPlus/Common++/header/
-)
-# include_directories(${PCAPPP_INCLUDE_DIR})
+# include_directories(
+#     /home/dev01/PcapPlusPlus/Pcap++/header/
+#     /home/dev01/PcapPlusPlus/Packet++/header/
+#     /home/dev01/PcapPlusPlus/Common++/header/
+# )
 
 
 # Настройка флагов компиляции
@@ -54,23 +53,23 @@ target_link_libraries(dasm
     dl
 )
 
-add_executable(sender_tpacket 
-    main_tpacket.cpp
-    packet_builder.cpp
-    sender_tpacket.cpp
-    tpacket_client.cpp
-    tx_ring.cpp
-    work_args.h)
+# add_executable(sender_tpacket 
+#     main_tpacket.cpp
+#     packet_builder.cpp
+#     sender_tpacket.cpp
+#     tpacket_client.cpp
+#     tx_ring.cpp
+#     work_args.h)
 
-target_link_libraries(sender_tpacket
-    /home/dev01/PcapPlusPlus/build/Pcap++/libPcap++.a
-    /home/dev01/PcapPlusPlus/build/Packet++/libPacket++.a
-    /home/dev01/PcapPlusPlus/build/Common++/libCommon++.a
-    ${ZeroMQ_LIBRARIES}
-    ${JSONCPP_LIBRARIES}
-    pthread
-    pcap
-)
+# target_link_libraries(sender_tpacket
+#     /home/dev01/PcapPlusPlus/build/Pcap++/libPcap++.a
+#     /home/dev01/PcapPlusPlus/build/Packet++/libPacket++.a
+#     /home/dev01/PcapPlusPlus/build/Common++/libCommon++.a
+#     ${ZeroMQ_LIBRARIES}
+#     ${JSONCPP_LIBRARIES}
+#     pthread
+#     pcap
+# )
 
 # Установка целевого файла
-install(TARGETS udp_sender dasm sender_tpacket DESTINATION bin)
+install(TARGETS udp_sender dasm DESTINATION bin)
