@@ -12,9 +12,13 @@
 #define BROADCAST "ff:ff:ff:ff:ff:ff"
 #define SENDMAC "e8:eb:d3:93:42:98"
 #define SENDIP "10.120.101.111"
+#define SENDIP_BYTES \
+    { 10, 120, 101, 111 }
 // #define SENDMAC2 "e8:eb:d3:93:42:99"
 #define RECVMAC "e8:eb:d3:93:42:91"
 #define RECVIP "10.120.101.11"
+#define RECVIP_BYTES \
+    { 10, 120, 101, 11 }
 /// @}
 
 /// starting UDP port
@@ -38,5 +42,9 @@ extern pcpp::IPv4Address sendIp;
 extern pcpp::MacAddress recvMac;
 extern pcpp::IPv4Address recvIp;
 /// @}
+
+extern FIFO<pcpp::MBufRawPacket *> fifo;
+extern void slicer();
+extern void sender();
 
 /// @}

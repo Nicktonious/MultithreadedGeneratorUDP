@@ -1,0 +1,24 @@
+# sudo systemctl daemon-reload
+# sudo systemctl enable  send@dev01
+# sudo systemctl disable send@dev01
+# sudo systemctl start   send@dev01
+# sudo systemctl stop    send@dev01
+# sudo systemctl status  send@dev01
+# sudo lib/pcpp/setup_dpdk.py status
+
+[Unit]
+Description = send @ %I
+Wants = network-online.target
+After = network.target network-online.target
+
+[Service]
+Type             = oneshot
+RemainAfterExit  = yes
+WorkingDirectory = /home/%i/MultithreadedGeneratorUDP
+User             = root
+Group            = root
+ExecStart        = /bin/sh etc/send.start
+ExecStop         = /bin/sh etc/send.stop
+
+[Install]
+WantedBy = multi-user.target

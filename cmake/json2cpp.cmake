@@ -4,12 +4,12 @@ file(GLOB JSON
 )
 
 foreach(JSON_FILE ${JSON})
-    string(REGEX REPLACE ".+\/(.+)\.json$" "${CMAKE_BINARY_DIR}/\\1.json.hpp"
-        JSON_HPP           ${JSON_FILE})
-        list(APPEND H      ${JSON_HPP})
     string(REGEX REPLACE ".+\/(.+)\.json$" "${CMAKE_BINARY_DIR}/\\1.json.cpp"
         JSON_CPP           ${JSON_FILE})
         list(APPEND C      ${JSON_CPP})
+    string(REGEX REPLACE ".+\/(.+)\.json$" "${CMAKE_BINARY_DIR}/\\1.json.hpp"
+        JSON_HPP           ${JSON_FILE})
+        list(APPEND H      ${JSON_HPP})
     add_custom_command(
         OUTPUT              ${JSON_CPP} ${JSON_HPP}
         DEPENDS             ${CMAKE_SOURCE_DIR}/src/json2cpp.py ${JSON_FILE}

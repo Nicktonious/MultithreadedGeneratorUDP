@@ -11,6 +11,8 @@ void watch(int argc, char *argv[], char *filename) {
     read(fd, buf, sizeof(buf));
     /// terminate
     /// stop network
+    // sensName1.stop = true;
+    // sensName2.stop = true;
     pcpp::DpdkDeviceList::getInstance().stopDpdkWorkerThreads();
     if (Net::dev) Net::dev->close();
     exit(0);
@@ -29,12 +31,12 @@ int main(int argc, char *argv[]) {  //
     //
     Net::init(true);
     for (int i = 1; i < argc; i++) {  // drop .ini parsing
-            arg(i, argv[i]);
-    //     yyfile = argv[i];
-    //     assert(yyin = fopen(yyfile, "r"));
-    //     yyparse();
-    //     fclose(yyin);
-    //     yyfile = nullptr;
+        arg(i, argv[i]);
+        //     yyfile = argv[i];
+        //     assert(yyin = fopen(yyfile, "r"));
+        //     yyparse();
+        //     fclose(yyin);
+        //     yyfile = nullptr;
     }
     CONFIG::run();
     REPL::repl();

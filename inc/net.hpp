@@ -18,6 +18,17 @@
 // #include "PcapLiveDeviceList.h"
 // #include "RawPacket.h"
 
+/// single packet size, bytes
+
+/// standard IP transfer unit
+#define MTU 1500
+/// frame transfer unit: (MTU-8-20)
+#define FTU 1400
+// (MTU - sizeof(pcpp::udphdr) - sizeof(pcpp::iphdr))
+
+/// *More Fragments*: fragmentation flag mask
+#define MF_flag 0b00100000
+
 /// @ingroup net
 class Net {
     static uint8_t coreNum;          ///< number of cores

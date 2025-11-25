@@ -22,8 +22,10 @@ void Net::init(bool dpdk) {
 void Net::start() { abort(); /* TODO */ }
 
 void Net::stop() {
-    pcpp::DpdkDeviceList::getInstance().stopDpdkWorkerThreads();
-    if (Net::dev) Net::dev->close();
+    if (Worker::any_started)  //
+        pcpp::DpdkDeviceList::getInstance().stopDpdkWorkerThreads();
+    if (Net::dev)  //
+        Net::dev->close();
 }
 
 void Net::list() {  //

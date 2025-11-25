@@ -2,13 +2,7 @@
     "version": 6,
     "buildPresets": [
         {
-            "name"            :  "linux/4",
-            "configurePreset" :  "linux",
-            "targets"         : ["all","install"],
-            "jobs"            :   4
-        },
-        {
-            "name"            :  "linux/24",
+            "name"            :  "linux",
             "configurePreset" :  "linux",
             "targets"         : ["all","install"],
             "jobs"            :   24
