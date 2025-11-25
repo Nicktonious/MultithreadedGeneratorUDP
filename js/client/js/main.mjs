@@ -4,12 +4,13 @@ import ControlChannel from './ClassControlChannel.mjs';
 import { loadConfig, toIPCConfig } from './configParser.mjs';
 import { StatsReceiver } from './Stats.mjs';
 import DataProvider from './ClassDataProvider.mjs';
+import { writeFileSync } from 'node:fs';
 const SYSCONF_PATH = './sysconf.json';
 // MAIN
 const args = parseArgs(process.argv.slice(2));
 const { config: configPath } = args;
 
-const sysConf = loadConfig(SYSCONF_PATH) ?? { coreProc: '' };
+// const sysConf = loadConfig(SYSCONF_PATH) ?? { coreProc: '' };
 /**
  * @type {import('./configParser.mjs').Config}
  */
@@ -23,16 +24,22 @@ let filesDict = userConf.groups.reduce((pr, curr) => {
 }, {});
 
 const ipcConf = toIPCConfig(userConf, filesDict, { baseCPUIndex: 0 });
+writeFileSync('./etc/config.json', JSON.stringify(ipcConf));
 
-const generator = fork(sysConf.coreProc, [JSON.stringify(ipcConf)], {
+const generator = fork('./bin/send', [JSON.stringify(ipcConf)], {
     stdio: ['inherit', 'inherit', 'inherit', 'ipc']
 });
 
 const stats = new StatsReceiver([generator]).Start();
 
 console.log(`Main Process ${process.pid} running on Core ${baseCPUIndex}`);
-
-let ctrlCh = infoCh ? new ControlChannel(infoCh) : undefined;
+let ctrlCh = null;
+if (userConf.sysChannel) try {
+    const [infoIp, infoPort] = userConf.sysChannel.host.split(':');
+    ctrlCh = new ControlChannel({ ip: infoIp, port: +infoPort });
+} catch (e) {
+    console.log(`Failed to init info channel on ${userConf.sysChannel}`);
+}
 
 if (ctrlCh) try {
     await ctrlCh.Connect();

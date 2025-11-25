@@ -117,6 +117,7 @@ function validateConfig(config) {
  * @function
  * @description Преобразует пользовательский конфиг в конфиг работы ядра генератора.  
  * @param {Config} config 
+ * @returns {object}
  */
 function toIPCConfig(conf, filesDict, additional) {
     // const getFilenames = (_dataPath) => readdirSync(_dataPath).map(fn => path.resolve(_dataPath, fn));

@@ -30,19 +30,26 @@ class DataProvider {
      * @returns {string}
      */
     ExtractZipArchive(zipFilePath, extractPath) {
+        const removeExtension = (filename) => {
+            const lastDotIndex = filename.lastIndexOf('.');
+            if (lastDotIndex === -1) {
+                return filename;
+            }
+            return filename.substring(0, lastDotIndex);
+        }
         try {
 
-            const archiveName = path.basename(zipFilePath, '.zip');
+            const archiveName = removeExtension(zipFilePath);
             const fullExtractPath = path.join(extractPath, archiveName);
 
             if (!fs.existsSync(fullExtractPath)) {
                 fs.mkdirSync(fullExtractPath, { recursive: true });
             }
 
-            const command = process.platform === 'win32' 
+            const command = process.platform === 'win32'
                 ? `powershell -command "Expand-Archive -Path '${zipFilePath}' -DestinationPath '${fullExtractPath}'"`
                 : `unzip -o "${zipFilePath}" -d "${fullExtractPath}"`;
-    
+
             console.log(`Extracting ${zipFilePath} to ${fullExtractPath}...`);
 
             execSync(command);
@@ -128,7 +135,7 @@ class DataProvider {
 
             fullExtractPath = this.ExtractZipArchive(zipFilePath, extractPath);
             const files = this.ReadAllFiles(fullExtractPath);
-        
+
             console.log(`Found ${files.length} files in ${fullExtractPath}`);
             return files;
 
@@ -167,7 +174,7 @@ class DataProvider {
 
     GetFullExtractPath(zipFilePath, extractPath) {
         hiveName = path.basename(zipFilePath, '.zip');
-            const fullExtractPath = path.join(extractPath, archiveName);
+        const fullExtractPath = path.join(extractPath, archiveName);
     }
 }
 
