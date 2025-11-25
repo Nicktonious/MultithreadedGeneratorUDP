@@ -6,28 +6,18 @@ pcpp::MacAddress recvMac(RECVMAC);
 pcpp::IPv4Address sendIp(SENDIP);
 pcpp::IPv4Address recvIp(RECVIP);
 
-Ring<int> ring;
-
-void slicer() {
-    for (int i = 0; i < 0x10; i++) {
-        std::clog << "slicer:" << i << '\n';
-        ring.push(i);
-    }
-}
-
-void sender() {
-    while (true) {  //
-        std::clog << "sender:" << ring.pop() << '\n';
-    }
-}
-
-void CONFIG::run() {  //
+void CONFIG::run() {
     std::clog << "\nconfig:run";
     for (auto s : config.sensors) s->init();
-    std::clog << "\n\n";
-    // 
-    auto sls = std::thread::spawn(slicer);
-    auto snd = std::thread::spawn(sender);
-    std::thread::join(sls);
-    std::thread::stop(snd);
+    //
+    GARP::command();
+    for (auto s : config.sensors) { s->run(); }
+    // sensName1.run();
+    // sensName2.run();
+    // sensName3.run();
+    //
+    SENSOR::t_stat = std::thread([]() { SENSOR::stat(); });
+    // sensName1.join();
+    // sensName2.join();
+    // sensName3.join();
 }

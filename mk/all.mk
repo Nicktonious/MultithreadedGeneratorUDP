@@ -1,6 +1,7 @@
 .PHONY: all run watch
-all: bin/$(BINFILE) $(S)
-run: bin/$(BINFILE) $(S)
-	$^
-watch: bin/$(BINFILE) $(S)
+all: bin/$(APP) $(S)
+run: bin/$(APP) $(S)
+	sudo $^
+watch: bin/$(APP) $(S)
+# 	@$^ ; while [ true ]; do $^ ; done
 	@$^ ; while [ $$? -eq 1 ]; do $^ ; done

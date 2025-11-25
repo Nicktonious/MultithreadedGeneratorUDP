@@ -1,3 +1,12 @@
+.PHONY: shark
+shark:
+# 	ssh dev01@10.120.100.51 tshark -i enp1s0np1
+	ssh dev01@10.120.100.51 dumpcap -i enp1s0np1 -f ip -w - | wireshark -k -i -
+
+.PHONY: recv
+recv:
+	ssh dev01@10.120.100.51 node reciever/server_cluster.js -d
+
 PCPP_CFG += -DPCAPPP_BUILD_EXAMPLES=OFF
 PCPP_CFG += -DPCAPPP_BUILD_TESTS=OFF
 PCPP_CFG += -DPCAPPP_BUILD_TUTORIALS=OFF
@@ -20,7 +29,3 @@ lib/pcpp/lib/libPacket++.a: ref/PcapPlusPlus/README.md
 	cmake $(PCPP_CFG) -S $(dir $<) -B tmp/pcpp --install-prefix=$(LIB)/pcpp
 	cmake --build   tmp/pcpp -j
 	cmake --install tmp/pcpp
-
-.PHONY: tshark
-tshark:
-	ssh dev01@10.120.100.51 tshark -i enp1s0np1

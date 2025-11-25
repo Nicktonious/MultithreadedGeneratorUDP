@@ -19,5 +19,5 @@ class GARP : public Worker {
     static std::vector<pcpp::DpdkWorkerThread *> threads;
     static void command();  ///< start subsystem from REPL
     /// build @GARP worker -> @ref threads
-    GARP(pcpp::DpdkDevice *dev, long interval = 1000 * 1000 * 1000);
+    GARP(pcpp::DpdkDevice *dev, long interval = 1000UL * 1000 * 1000 * 5);
 };

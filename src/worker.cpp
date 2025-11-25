@@ -31,7 +31,10 @@ void Worker::stop() { _stop = true; }
 
 uint32_t Worker::getCoreId() const { return coreid; }
 
+bool Worker::any_started = false;
+
 bool Worker::run(uint32_t coreid) {
+    any_started = true;
     getcpu = sched_getcpu();
     coreid = coreid;
     _stop = false;

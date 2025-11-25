@@ -6,7 +6,7 @@
     },
     "groups": [
         {
-            "name": "1d",
+            "name": "g1d",
             "filesPath": "./1d_sensors.zip",
             "loop": false,
             "freq": 1000,
@@ -26,7 +26,7 @@
             ]
         },
         {
-            "name": "2d",
+            "name": "g2d",
             "filesPath": "./2d_sensors.zip",
             "loop": false,
             "freq": 1000,
