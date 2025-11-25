@@ -1,4 +1,4 @@
-import { fork } from 'node:child_process';
+import { exec, execSync, fork, spawn } from 'node:child_process';
 import parseArgs from './argsParser.mjs';
 import ControlChannel from './ClassControlChannel.mjs';
 import { loadConfig, toIPCConfig } from './configParser.mjs';
@@ -17,7 +17,6 @@ const { config: configPath } = args;
 const userConf = loadConfig(configPath);
 const dataProvider = new DataProvider();
 
-// extract zips and save path to each group's data 
 let filesDict = userConf.groups.reduce((pr, curr) => {
     pr[curr.name] = dataProvider.ExtractZipArchive(curr.filesPath, './temp');
     return pr;
@@ -26,14 +25,24 @@ let filesDict = userConf.groups.reduce((pr, curr) => {
 const ipcConf = toIPCConfig(userConf, filesDict, { baseCPUIndex: 0 });
 writeFileSync('./etc/config.json', JSON.stringify(ipcConf));
 
-const generator = fork('./bin/send', [JSON.stringify(ipcConf)], {
+// process.exit();
+
+let res1 = execSync('cmake --fresh --preset linux');
+console.log(`'cmake --fresh --preset linux' finished with ${res1.toLocaleString()}`);
+let res2 = execSync('cmake --build --preset linux -j');
+console.log(`'cmake --build --preset linux -j' finished with ${res2.toLocaleString()}`);
+
+const generator = spawn('./bin/send', [], {
     stdio: ['inherit', 'inherit', 'inherit', 'ipc']
 });
-
+generator.on('spawn', () => {
+    console.log('`bin/send` spawned!');
+});
 const stats = new StatsReceiver([generator]).Start();
 
-console.log(`Main Process ${process.pid} running on Core ${baseCPUIndex}`);
+console.log(`Main Process ${process.pid} is running`);
 let ctrlCh = null;
+
 if (userConf.sysChannel) try {
     const [infoIp, infoPort] = userConf.sysChannel.host.split(':');
     ctrlCh = new ControlChannel({ ip: infoIp, port: +infoPort });
@@ -67,7 +76,7 @@ async function INT_handler({ generator, stats, ctrlCh }) {
     if (!generator.killed) generator.kill('SIGINT');
 
     setTimeout(async () => {
-        const tx_stats = await stats.GetStats();
+        const tx_stats = [];//await stats.GetStats();
         const tx_sent = tx_stats.reduce((p, c) => p + c, 0);
         console.log(`Sent ${tx_sent} packets`);
         console.log(`Stats: ${stats.packets}\ntotal: ${tx_sent}`);

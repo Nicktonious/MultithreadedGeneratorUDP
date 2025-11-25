@@ -1,24 +1,5 @@
-import zmq from 'zeromq';
 import { sleep } from './utils.mjs';
 import { EventEmitter } from 'node:events';
-
-class StatsSender {
-    constructor({ address, id }) {
-        this.address = address;
-        this.publisher = new zmq.Publisher();
-        this.topicName = `${id}/tx`;
-    }
-    async Init() {
-        await this.publisher.bind(this.address);
-        console.log(`ZMQ Publisher-брокер запущен на ${this.address}`);
-        await sleep(100);
-        return this;
-    }
-
-    async Send(txPackets) {
-        this.publisher.send([this.topicName, txPackets]);
-    }
-}
 
 class StatsReceiver extends EventEmitter {
     constructor(processes) {

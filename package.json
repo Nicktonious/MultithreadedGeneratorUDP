@@ -4,6 +4,7 @@
   "description": "Проект создания генератора данных, для тестирования высокоскоростных сетевых интерфейсов 100...200 Gbit UDP трафиком.",
   "main": "main.mjs",
   "scripts": {
+    "start": "node ./js/client/js/main.mjs",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",

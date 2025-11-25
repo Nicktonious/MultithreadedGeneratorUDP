@@ -38,17 +38,17 @@ class DataProvider {
             return filename.substring(0, lastDotIndex);
         }
         try {
-
-            const archiveName = removeExtension(zipFilePath);
+            const archiveName = path.basename(removeExtension(zipFilePath));
             const fullExtractPath = path.join(extractPath, archiveName);
+            const tempPath = path.join(fullExtractPath, '/*');
 
-            if (!fs.existsSync(fullExtractPath)) {
-                fs.mkdirSync(fullExtractPath, { recursive: true });
+            if (fs.statSync(fullExtractPath).isDirectory()) {
+                execSync(`rm ${tempPath} -rf`);
+                console.log(`Clearing dir ${tempPath}...`);
             }
-
             const command = process.platform === 'win32'
                 ? `powershell -command "Expand-Archive -Path '${zipFilePath}' -DestinationPath '${fullExtractPath}'"`
-                : `unzip -o "${zipFilePath}" -d "${fullExtractPath}"`;
+                : `unzip -j "${zipFilePath}" -d "${fullExtractPath}"`;
 
             console.log(`Extracting ${zipFilePath} to ${fullExtractPath}...`);
 
@@ -129,15 +129,35 @@ class DataProvider {
      * @param {string} zipFilePath 
      * @returns {[TypeFile]}
      */
-    ExtractAndReadZip(zipFilePath, extractPath) {
-        let fullExtractPath = '';
-        try {
+    async ExtractAndReadZip(zipFilePath, extractPath) {
 
-            fullExtractPath = this.ExtractZipArchive(zipFilePath, extractPath);
+        /*const archiveName = path.basename(removeExtension(zipFilePath));
+        const fullExtractPath = path.join(extractPath, archiveName);
+
+        if (!fs.existsSync(fullExtractPath)) {
+            fs.mkdirSync(fullExtractPath, { recursive: true });
+        }
+        let fullExtractPath = zipFilePath;
+
+        const removeExtension = (filename) => {
+            const lastDotIndex = filename.lastIndexOf('.');
+            if (lastDotIndex === -1) {
+                return filename;
+            }
+            return filename.substring(0, lastDotIndex);
+        }*/
+        try {
+            const archiveName = path.basename(removeExtension(zipFilePath));
+            const fullExtractPath = path.join(extractPath, archiveName);
+            const stats = fs.statSync(zipFilePath);
+            if (!stats.isDirectory()) {
+                fullExtractPath = this.ExtractZipArchive(zipFilePath, extractPath);
+            }
+
             const files = this.ReadAllFiles(fullExtractPath);
 
             console.log(`Found ${files.length} files in ${fullExtractPath}`);
-            return files;
+            return extractPath
 
         } catch (error) {
             console.error('Error in extractAndReadZip:', error);
