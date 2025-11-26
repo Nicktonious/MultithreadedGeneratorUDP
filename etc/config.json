@@ -4,7 +4,7 @@
             "name": "g1d",
             "duration": 60,
             "loop": false,
-            "freq": 1,
+            "freq": 100,
             "packetSize": 1800,
             "sensors": [
                 {
