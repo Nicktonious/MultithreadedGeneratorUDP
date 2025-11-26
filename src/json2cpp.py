@@ -144,6 +144,7 @@ def config_json(jsn, cpp, hpp):
                         c[sname] // f'.size = {size},'
                         c[sname] // f'.packetSize = {g["packetSize"]},'
                         c[sname] // f'.packets = {size//g["packetSize"]},'
+                        c[sname] // f'.freq = {g["freq"]}'
 
 if __name__ == "__main__":
     jsn, cpp, hpp = sys.argv[1:3 + 1]
