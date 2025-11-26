@@ -25,13 +25,13 @@ void SENSOR::init() {
     // std::clog << "\n\t\tsize:" << size;
     // std::clog << "\n\t\tpacketSize:" << packetSize;
     // std::clog << "\n\t\tpackets:" << packets;
-
     check();
 }
 
 void SENSOR::yield() {
+    auto delay = int(1.0 / freq * 1e9);
     std::this_thread::sleep_for(
-        std::chrono::nanoseconds(int(1.0 / freq * 1e9)));
+        std::chrono::nanoseconds( delay ? delay : 1));
 }
 
 void SENSOR::sleep() {

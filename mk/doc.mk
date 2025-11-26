@@ -1,6 +1,6 @@
 .PHONY: doc
 doc:
-	rsync -r $(HOME)/metadoc/$(APP)/ doc/
+	-rsync -r $(HOME)/metadoc/$(APP)/ doc/
 
 .PHONY: doxy
 doxy: .doxygen doc/DoxygenLayout.xml doc/logo.png

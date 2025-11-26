@@ -2,20 +2,23 @@
 . $(dirname "$0")/send.config
 
 # sudo systemctl daemon-reload
+# sudo systemctl enable send@dev01
 # sudo systemctl start send@dev01
 # sudo systemctl stop send@dev01
 # sudo systemctl status send@dev01
 
 echo 1 | tee /sys/module/vfio/parameters/enable_unsafe_noiommu_mode
+# echo 1 | sudo tee /sys/module/vfio/parameters/enable_unsafe_noiommu_mode
 # cat /sys/module/vfio/parameters/enable_unsafe_noiommu_mode
 
-$DPDKPY setup -r $DPDK_ROOT -g $HUGESIZE -i $ETH -m $DRIVER
+echo 2048 | tee /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages
+# echo 2048 | sudo tee /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages
+# cat /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages
+# cat /proc/meminfo | grep Huge
 
+# $DPDKPY setup -r $DPDK_ROOT -g $HUGESIZE -i $ETH -m $DRIVER
 # sudo lib/pcpp/setup_dpdk.py status
 
 # 0000:01:00.0
 # 'MT27800 Family [ConnectX-5] 1017'
 # drv=vfio-pci unused=mlx5_core,igb_uio,uio_pci_generic
-
-# cat /proc/meminfo | grep Huge
-# cat /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages

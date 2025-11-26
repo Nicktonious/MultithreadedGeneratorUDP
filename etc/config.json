@@ -1,44 +1,28 @@
 {
-    "baseCPUIndex": 0,
     "groups": [
         {
             "name": "g1d",
             "duration": 60,
             "loop": false,
-            "freq": 1000,
-            "packetSize": 18496,
+            "freq": 100,
+            "packetSize": 1800,
             "sensors": [
                 {
-                    "name": "sensName1",
-                    "src": "10.110.100.111:40000",
-                    "dst": "10.120.101.11:40000",
-                    "sn": 2531001,
-                    "dataPath": "./data/PLT4600_gen_1/S_1_1.gen"
+                    "name": "S_1_1",
+                    "src": "10.120.100.111:40001",
+                    "dst": "10.120.101.11:40001",
+                    "sn": "2531001",
+                    "dataPath": "temp/PLT4600_gen_1/S_1_1.gen"
                 },
                 {
-                    "name": "sensName2",
-                    "src": "10.110.100.111:40001",
-                    "dst": "10.120.101.11:40001",
+                    "name": "S_1_2",
+                    "src": "10.120.100.111:40002",
+                    "dst": "10.120.101.11:40002",
                     "sn": "2531002",
-                    "dataPath": "./data/PLT4600_gen_1/S_1_2.gen"
-                }
-            ]
-        },
-        {
-            "name": "g2d",
-            "duration": 60,
-            "loop": false,
-            "freq": 1000,
-            "packetSize": 18496,
-            "sensors": [
-                {
-                    "name": "sensName3",
-                    "src": "10.110.100.111:40004",
-                    "dst": "10.120.101.11:40004",
-                    "sn": 2531003,
-                    "dataPath": "./data/PLT4600_gen_1/S_1_3.gen"
+                    "dataPath": "temp/PLT4600_gen_1/S_1_2.gen"
                 }
             ]
         }
-    ]
+    ],
+    "baseCPUIndex": 0
 }

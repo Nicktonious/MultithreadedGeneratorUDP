@@ -1,9 +1,9 @@
 # Название профиля (опционально)
-label = MultithreadedGeneratorUDP sync
+label = pcapp_based sync
 
 # Корневые директории
-root = /home/dponyatov/MultithreadedGeneratorUDP 
-root = ssh://dev01@10.120.100.39//home/dev01/MultithreadedGeneratorUDP
+root = /home/dponyatov/pcapp_based
+root = ssh://dev01@10.120.100.39//home/dev01/pcapp_based
 
 # Автоматизация
 auto   = true

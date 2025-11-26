@@ -74,7 +74,7 @@ void SENSOR::stat() {
         std::cout << " \"packets\":" << total_packets << ",";
         std::cout << " \"mbytes\":" << total_bytes / Mb << ",";
         std::cout << " \"pps\":" << pps << ",";
-        std::cout << " \"mbps\":" << bps / Mb << " }\n";
+        std::cout << " \"bps\":" << bps << " }\n";
         //
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));  /// 1s
     }
