@@ -67,7 +67,7 @@ def udp(s):
 def binobj(file):
     ret = file
     ret = re.sub(r'[\/\.]+', r'_', ret)
-    return f'_binary_{ret}'
+    return f'_binary{ret}'
 
 def riftek_cfg(jsn, cpp, hpp, model):
     with open(jsn, 'r') as jsn:
