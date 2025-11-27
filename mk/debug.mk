@@ -1,7 +1,3 @@
-.PHONY: valg
-valg: bin/$(BINFILE) $(S)
-	valgrind $^ 2> tmp/$(APP).valgrind
-
 # IP ?= 10.120.100.39
 IP ?= 127.0.0.1
 PORT ?= 12345
@@ -10,6 +6,10 @@ gdbs: bin/$(BINFILE) $(S)
 	gdbserver $(IP):$(PORT) $^
 gdb: bin/$(BINFILE) $(S)
 	gdb -nx -x .gdbinit $^
+
+.PHONY: valg
+valg: bin/$(BINFILE) $(S)
+	valgrind $^ 2> tmp/$(APP).valgrind
 
 # # Специальные настройки для работы с hugepages
 # valgrind --trace-children=yes \
