@@ -4,6 +4,7 @@ include mk/dir.mk
 include mk/tool.mk
 include mk/src.mk
 include mk/all.mk
+include mk/debug.mk
 include mk/clean.mk
 include mk/format.mk
 include mk/doc.mk
