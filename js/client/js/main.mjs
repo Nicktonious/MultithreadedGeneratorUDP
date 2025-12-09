@@ -2,7 +2,7 @@ import { exec, execSync, fork, spawn } from 'node:child_process';
 import parseArgs from './argsParser.mjs';
 import ControlChannel from './ClassControlChannel.mjs';
 import { loadConfig, toIPCConfig } from './configParser.mjs';
-import { StatsReceiver } from './Stats.mjs';
+import { StatsReceiver, StatsStream } from './Stats.mjs';
 import DataProvider from './ClassDataProvider.mjs';
 import { writeFileSync } from 'node:fs';
 const SYSCONF_PATH = './sysconf.json';
@@ -38,7 +38,6 @@ const generator = spawn('./bin/send', [], {
 generator.on('spawn', () => {
     console.log('`bin/send` spawned!');
 });
-const stats = new StatsReceiver([generator]).Start();
 
 console.log(`Main Process ${process.pid} is running`);
 let ctrlCh = null;
@@ -63,23 +62,26 @@ if (ctrlCh) try {
     console.log(e);
 }
 
+const statsReceiver = new StatsReceiver(generator);
+
+/*statsReceiver.OnStats = stats => {
+    if (typeof stats?.packets == 'number') ctrlCh.Packets(stats.packets);
+}*/
+
 // Обработка SIGINT
 process.on('SIGINT', async () => {
-    await INT_handler({ generator, stats, ctrlCh });
+    await INT_handler({ generator, statsReceiver, ctrlCh });
 });
 
-
-async function INT_handler({ generator, stats, ctrlCh }) {
+async function INT_handler({ generator, statsReceiver, ctrlCh }) {
     // processes.forEach(child => child.send({ com: 'tx_packets' }));
     console.log('INTERRUPT signal');
 
     if (!generator.killed) generator.kill('SIGINT');
 
     setTimeout(async () => {
-        const tx_stats = [];//await stats.GetStats();
-        const tx_sent = tx_stats.reduce((p, c) => p + c, 0);
+        const tx_sent = statsReceiver.packets;
         console.log(`Sent ${tx_sent} packets`);
-        console.log(`Stats: ${stats.packets}\ntotal: ${tx_sent}`);
 
         if (ctrlCh) try {
             ctrlCh.Packets(tx_sent);
