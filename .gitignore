@@ -1,7 +1,12 @@
+*~
+*.swp
+*.log
 node_modules/
 .venv/
 go/
 py/*
+lib/python*
+lib64
 pcap_files
 js/client/process_based/js/00_raw
 js/client/process_based/js/stable copy
@@ -10,3 +15,4 @@ js/client/process_based/js/build
 *.zip
 *.7z
 **/00__raw/*
+!.gitignore

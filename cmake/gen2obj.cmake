@@ -1,6 +1,7 @@
 file(GLOB GEN
     RELATIVE ${CMAKE_SOURCE_DIR}
-    data/**/*.gen
+    # data/**/*.gen
+    temp/**/*.gen
 )
 
 # message("-- | gen: ${GEN}")

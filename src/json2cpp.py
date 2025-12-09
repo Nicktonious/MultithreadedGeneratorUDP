@@ -67,7 +67,7 @@ def udp(s):
 def binobj(file):
     ret = file
     ret = re.sub(r'[\/\.]+', r'_', ret)
-    return f'_binary{ret}'
+    return f'_binary_{ret}'
 
 def riftek_cfg(jsn, cpp, hpp, model):
     with open(jsn, 'r') as jsn:
@@ -121,7 +121,7 @@ def config_json(jsn, cpp, hpp):
                     else:
                         c[gname] // f'.loop = false,'
                     c[gname] // f'.freq = {g["freq"]},'
-                    c[gname] // f'.packetSize = {g["packetSize"]},'
+                    # c[gname] // f'.packetSize = {g["packetSize"]},'
                     c[gname]['sensors'] = S(
                         '.sensors = {', '},'); c[gname] // c[gname]['sensors']
                 #

@@ -46,3 +46,36 @@ bool Stat::run(uint32_t coreid) {
     std::cerr << "======================\n";
     return true;
 }
+
+std::thread SENSOR::t_stat;
+std::vector<SENSOR *> SENSOR::sensors;
+uint SENSOR::total_packets;
+uint SENSOR::total_bytes;
+
+void SENSOR::stat() {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    uint pps = 0, bps = 0;
+    while (true) {
+        //
+        auto now =  //
+            std::chrono::system_clock::now();
+        auto local_time =  //
+            std::chrono::zoned_time{std::chrono::current_zone(), now};
+        std::cout << "{ \"ts\":\"" << local_time << "\",";
+        //
+        pps = 0, bps = 0;
+        for (auto s : sensors) {
+            pps += s->sent_packets, s->sent_packets = 0;
+            bps += s->sent_bytes, s->sent_bytes = 0;
+        }
+        total_packets += pps, total_bytes += bps;
+        //
+        const uint Mb = 1024 * 1024;
+        std::cout << " \"packets\":" << total_packets << ",";
+        std::cout << " \"mbytes\":" << total_bytes / Mb << ",";
+        std::cout << " \"pps\":" << pps << ",";
+        std::cout << " \"mbps\":" << bps / Mb << " }\n";
+        //
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));  /// 1s
+    }
+}

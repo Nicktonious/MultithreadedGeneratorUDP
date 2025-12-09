@@ -44,4 +44,5 @@ class Worker : public pcpp::DpdkWorkerThread {
     uint32_t getCoreId() const;  ///< get CPU core bound
     bool schedule();             ///< wait until next send shedule
     virtual std::string tag();   ///< worker class tag
+    static bool any_started;     ///< flag shows any worker was started
 };

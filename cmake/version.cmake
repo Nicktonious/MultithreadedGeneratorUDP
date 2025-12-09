@@ -20,4 +20,5 @@ execute_process(
 )
 
 # set(BIN_OUTPUT_NAME ${CMAKE_PROJECT_NAME}_${HW}_${BRANCH}_${NOW})
-set(BIN_OUTPUT_NAME ${APP}_${NOW})
+# set(BIN_OUTPUT_NAME ${APP}_${NOW})
+set(BIN_OUTPUT_NAME ${APP})
