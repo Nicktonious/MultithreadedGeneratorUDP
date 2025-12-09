@@ -1,6 +1,6 @@
 file(GLOB JSON
     RELATIVE ${CMAKE_SOURCE_DIR}
-    etc/*.json
+    etc/config.json
 )
 
 foreach(JSON_FILE ${JSON})

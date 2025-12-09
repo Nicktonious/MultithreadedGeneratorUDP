@@ -6,3 +6,4 @@ INC       = $(CWD)/inc
 SRC       = $(CWD)/src
 TMP       = $(CWD)/tmp
 REF       = $(CWD)/ref
+ETC       = $(CWD)/etc

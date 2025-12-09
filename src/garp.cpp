@@ -1,23 +1,30 @@
-#include "app.hpp"
+#include "stat.hpp"
 
-std::vector<pcpp::DpdkWorkerThread *> GARP::threads;
+GARP* GARP::garp = nullptr;
 
-void GARP::command() {  //
-    GARP::threads.push_back(new GARP(Net::dev));
-    pcpp::DpdkDeviceList::getInstance().startDpdkWorkerThreads(  //
-        GARP::coreMask, GARP::threads);
-    std::cerr << "\ngarp:\n";
+void GARP::init() { garp = new GARP(Dev::dev); }
+
+GARP::GARP(pcpp::DpdkDevice* dev) : Worker(dev) {
+    assert(!GARP::garp);  // check singleton
+    GARP::garp = this;
+    std::clog << "garp: sheduled\n";
 }
 
-GARP::GARP(pcpp::DpdkDevice *dev, long interval) : Worker(dev, interval) {
-    //
-    assert(eth_layer = new pcpp::EthLayer(  //
-               sendMac, recvMac, PCPP_ETHERTYPE_ARP));
-    packet.addLayer(eth_layer);
-    //
-    assert(arp_layer = new pcpp::ArpLayer(  //
-               pcpp::ARP_REQUEST, sendMac, sendIp, recvMac, recvIp));
-    packet.addLayer(arp_layer);
-    //
+bool GARP::run(uint32_t coreId) {
+    assert(Worker::run(coreId));
+    pcpp::Packet packet;
+    pcpp::EthLayer eth_layer(Dev::sendMac, Dev::recvMac, PCPP_ETHERTYPE_ARP);
+    packet.addLayer(&eth_layer);
+    pcpp::ArpLayer arp_layer(pcpp::ARP_REQUEST,  //
+                             Dev::sendMac, Dev::sendIp, Dev::recvMac,
+                             Dev::recvIp);
+    packet.addLayer(&arp_layer);
     packet.computeCalculateFields();
+    while (!_stop) {
+        std::clog << "garp:\n";
+        dev->sendPacket(packet);
+
+        std::this_thread::sleep_for(interval);
+    }
+    return terminate();
 }

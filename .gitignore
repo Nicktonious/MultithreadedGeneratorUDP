@@ -1,18 +1,44 @@
-*~
-*.swp
-*.log
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Linker files
+*.ilk
+
+# Debugger Files
+*.pdb
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# debug information files
+*.dwo
+
 node_modules/
-.venv/
-go/
-py/*
-lib/python*
-lib64
-pcap_files
-js/client/process_based/js/00_raw
-js/client/process_based/js/stable copy
-js/client/process_based/js/build
-/temp/*
-*.zip
-*.7z
-**/00__raw/*
-!.gitignore
+/00_raw/

@@ -13,15 +13,11 @@ file(GLOB C
 file(GLOB H
     RELATIVE ${CMAKE_SOURCE_DIR}
     inc/*.h*
-    # net
-    lib/pcpp/include/pcapplusplus/*.h*
 )
 
 file(GLOB INC
     RELATIVE ${CMAKE_SOURCE_DIR}
     ${CMAKE_BINARY_DIR}
     inc src
-    # net
-    lib/pcpp/include/pcapplusplus
 )
 include_directories(${INC})

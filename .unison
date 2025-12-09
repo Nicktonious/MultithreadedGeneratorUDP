@@ -1,9 +1,12 @@
+# .unicon
+## cd ~/.unison ; ln -fs ~/zmq/.unison zmq.prf ; cd ~/zmq ; ls -la ~/.unison
+
 # Название профиля (опционально)
-label = MultithreadedGeneratorUDP sync
+label = zmq sync
 
 # Корневые директории
-root = /home/dponyatov/MultithreadedGeneratorUDP 
-root = ssh://dev01@10.120.100.39//home/dev01/MultithreadedGeneratorUDP
+root = /home/dponyatov/zmq
+root = ssh://dev01@10.120.100.39//home/dev01/zmq
 
 # Автоматизация
 auto   = true
@@ -14,6 +17,7 @@ prefer = newer
 # ignore = Name {.unison}
 ignore = Name {.git}
 ignore = Name {*~,*.log,*.sw?}
-ignore = Name {bin,doc/html,tmp,ref}
+ignore = Name {bin,tmp,ref}
+ignore = Name {doc/html,lib/pcpp}
 ignore = Name {node_modules,.cache}
 ignore = Name {*.pyc,__pycache__}

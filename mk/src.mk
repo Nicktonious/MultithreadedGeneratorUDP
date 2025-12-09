@@ -6,14 +6,18 @@ CM += CMake* $(wildcard cmake/*.cmake)
 
 # C/C++
 C  += $(wildcard src/*.c*)
-# C  += $(wildcard cpp/*.c*) $(wildcard cpp/raw__00/*.c*)
 H  += $(wildcard inc/*.h*)
-# H  += $(wildcard cpp/*.h*) $(wildcard cpp/raw__00/*.h*)
 LX += $(wildcard src/*.lex src/*.yacc src/*.ragel)
+# libs
+C  += $(wildcard lib/src/*.c*) $(wildcard lib/*/src/*.c*)
+H  += $(wildcard lib/inc/*.h*) $(wildcard lib/*/inc/*.h*)
 
 # ini
 S  += $(wildcard lib/*.ini) $(wildcard lib/*.f)
 S   = $(wildcard etc/*.json)
+
+# OCaml
+M += $(wildcard lib/*.ml*)
 
 # Python
 P += $(wildcard src/*.py) $(wildcard lib/*.py)

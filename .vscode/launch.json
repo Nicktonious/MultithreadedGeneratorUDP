@@ -2,6 +2,24 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name"            : "cmake:remote",
+            "type"            : "cppdbg",
+            "request"         : "launch",
+            "cwd"             : "${workspaceFolder}",
+            "program"         : "${command:cmake.launchTargetPath}",
+            "args"            : ["etc/config.json"],
+            "environment"     : [],
+            "preLaunchTask"   : "CMake: build",
+            "stopAtEntry"     : true,
+            "externalConsole" : false,
+            "MIMode"          : "gdb",
+            "miDebuggerPath"  : "gdb",
+            "setupCommands"   : [
+                {"text": "-enable-pretty-printing","ignoreFailures": true},
+                {"text": "source ${workspaceFolder}/.gdbinit","ignoreFailures": true}
+            ]
+        },
+        {
             "name"            : "cmake:linux",
             "type"            : "cppdbg",
             "request"         : "launch",
@@ -13,7 +31,7 @@
             "stopAtEntry"     : true,
             "externalConsole" : false,
             "MIMode"          : "gdb",
-            "miDebuggerPath"  : "${workspaceFolder}/bin/send",
+            // "miDebuggerPath"  : "${workspaceFolder}/bin/send",
             "setupCommands"   : [{"text": "-enable-pretty-printing","ignoreFailures": true}]
         }
     ]

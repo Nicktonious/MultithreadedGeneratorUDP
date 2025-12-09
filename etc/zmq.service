@@ -14,7 +14,7 @@ After = network.target network-online.target
 [Service]
 Type             = oneshot
 RemainAfterExit  = yes
-WorkingDirectory = /home/%i/MultithreadedGeneratorUDP
+WorkingDirectory = /home/%i/pcapp_based
 User             = root
 Group            = root
 ExecStart        = /bin/sh etc/send.start

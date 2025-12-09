@@ -1,23 +1,25 @@
-#include "app.hpp"
-#include "config.json.hpp"
+#include "config.hpp"
 
-pcpp::MacAddress sendMac(SENDMAC);
-pcpp::MacAddress recvMac(RECVMAC);
-pcpp::IPv4Address sendIp(SENDIP);
-pcpp::IPv4Address recvIp(RECVIP);
+const std::chrono::seconds GARP::interval(15);
+const std::chrono::seconds Stat::interval(1);
 
-void CONFIG::run() {
-    std::clog << "\nconfig:run";
-    for (auto s : config.sensors) s->init();
-    //
-    GARP::command();
-    for (auto s : config.sensors) { s->run(); }
-    // sensName1.run();
-    // sensName2.run();
-    // sensName3.run();
-    //
-    SENSOR::t_stat = std::thread([]() { SENSOR::stat(); });
-    // sensName1.join();
-    // sensName2.join();
-    // sensName3.join();
+const uint Sender::burst_sz = 64;
+
+const pcpp::MacAddress Dev::broadcast(BROADCAST);
+const pcpp::MacAddress Dev::sendMac(SENDMAC);
+const pcpp::MacAddress Dev::recvMac(RECVMAC);
+const pcpp::IPv4Address Dev::sendIp(SENDIP);
+const pcpp::IPv4Address Dev::recvIp(RECVIP);
+
+void Config::init() {
+    std::clog << "config:\n";
+    for (auto g : config.groups) {
+        new Group(Dev::dev, g);
+    }
+}
+
+void Config::stop() {
+    std::clog << "config: stop\n";
+    Dev::stop();
+    exit(0);
 }

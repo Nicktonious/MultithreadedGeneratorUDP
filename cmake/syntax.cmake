@@ -3,7 +3,7 @@ find_package(BISON             REQUIRED)
 find_program(RAGEL_EXECUTABLE  ragel   )
 find_package(READLINE          REQUIRED)
 
-file(GLOB L
+file(GLOB X
     RELATIVE ${CMAKE_SOURCE_DIR}
     src/*.lex
 )
@@ -18,7 +18,7 @@ file(GLOB R
     src/*.ragel
 )
 
-foreach(LEX_FILE ${L})
+foreach(LEX_FILE ${X})
     string(REGEX REPLACE ".+\/(.+)\.lex$" "${CMAKE_BINARY_DIR}/\\1.lex.cpp"
         LEXER_CPP           ${LEX_FILE})
         list(APPEND CP      ${LEXER_CPP})

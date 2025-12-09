@@ -1,6 +1,6 @@
 {
     "files.exclude": {
-        "doc/html": true, "**/node_modules/**": true,
+        "doc/html": true, "**/node_modules/**": true, "_build": true,
     },
     "files.watcherExclude": {
         "ref/**": true,
@@ -63,13 +63,28 @@
     "cmake.ignoreCMakeListsMissing"    : false,
 
     // Python
-    "python.defaultInterpreterPath":  "python3",
-    "autopep8.path"                : ["autopep8"],
+    // "python.defaultInterpreterPath":  "${workspaceFolder}/bin/python3",
+    // "autopep8.path"                : ["${workspaceFolder}/bin/autopep8"],
+    // "ruff.interpreter"             : ["${workspaceFolder}/bin/python3"],
     "autopep8.args"                : ["--ignore","E26,E302,E305,E401,E402,E701,E702"],
     "python.analysis.extraPaths"   : ["${workspaceFolder}/src", "${workspaceFolder}/lib"],
     "[python]": {
-        "editor.defaultFormatter" : "ms-python.autopep8",
-        "editor.formatOnSave"    :  true},
+        "editor.defaultFormatter"  : "ms-python.autopep8",
+        "editor.formatOnSave"      :  true},
+    "ruff.configuration"               : ".ruff.toml",
+    "ruff.lint.preview"                : true,
+    "ruff.format.preview"              : true,
+    "python.testing.pytestArgs"        : ["lib"],
+    "python.testing.unittestEnabled"   : false,
+    "python.testing.pytestEnabled"     : true,
+
+    // OCaml (cs3110)
+    "[ocaml]": {
+        "editor.tabSize": 2, "editor.rulers": [80],
+        "editor.formatOnSave": true },
+    "[ocaml.interface]": {
+        "editor.tabSize": 2, "editor.rulers": [80],
+        "editor.formatOnSave": true },
 
     // MinGW/MSYS2
     "terminal.integrated.defaultProfile.windows": "UCRT64",

@@ -69,37 +69,12 @@ def binobj(file):
     ret = re.sub(r'[\/\.]+', r'_', ret)
     return f'_binary_{ret}'
 
-def riftek_cfg(jsn, cpp, hpp, model):
-    with open(jsn, 'r') as jsn:
-        with C(cpp) as c:
-            with H(hpp) as h:
-                config = json.load(jsn)
-                h // '#include "riftek.hpp"'
-                h // f'extern RF_CONFIG config_{model};'
-                c.config = S(
-                    f'RF_CONFIG config_{model} = {{', '};'); c // c.config
-                c.config // f'.Device_ID = {config["Device_ID"]},'
-                c.config // f'.Protocol = {{{config["Protocol_Version_Major"]},{config["Protocol_Version_Minor"]}}},'
-                flags = 'true' if int(config["Flags"]) else 'false'
-                c.config // f'.Flags = {flags},'
-                c.config // f'.License_hash = {config["License_hash"]},'
-                c.config // f'.Exposure_time = {config["Exposure_time_ns"]},'
-                c.config // f'.Laser_value = {config["Laser_value"]},'
-                c.config // f'.Alignment = {config["Alignment_with_sensor"]},'
-                c.config // f'.Scaling_factor = {config["Scaling_factor_mm_per_discr"]},'
-                c.config // f'.ZMR = {config["ZMR_mm_x0_1"]},'
-                c.config // f'.XEMR = {config["XEMR_mm_x0_1"]},'
-                c.config // f'.Bytes_per_point = {config["Bytes_per_point"]},'
-                reserved = '{%s}' % str(config["Reserved_38_43"])[1:-1]
-                c.config // f'._reserved = {reserved},'
-                c.config // f'.Points = {config["Points"]},'
-
 def config_json(jsn, cpp, hpp):
     with open(jsn, 'r') as jsn:
         with C(cpp) as c:
             with H(hpp) as h:
                 config = json.load(jsn)
-                h // '#include "types.hpp"'
+                h // '#include "app.hpp"'
                 h // 'extern CONFIG config;'
                 c.config = S('CONFIG config = {', '};'); c // c.config
                 c.cpuindex = S('.baseCPUIndex = 0,'); c.config // c.cpuindex
@@ -117,9 +92,9 @@ def config_json(jsn, cpp, hpp):
                     c // c[gname]
                     c[gname] // f'.duration = {g["duration"]},'
                     if g["loop"]:
-                        c[gname] // f'.loop = true,'
+                        c[gname] // '.loop = true,'
                     else:
-                        c[gname] // f'.loop = false,'
+                        c[gname] // '.loop = false,'
                     c[gname] // f'.freq = {g["freq"]},'
                     # c[gname] // f'.packetSize = {g["packetSize"]},'
                     c[gname]['sensors'] = S(
@@ -130,8 +105,8 @@ def config_json(jsn, cpp, hpp):
                         h // f'extern SENSOR {sname};'
                         c[gname]['sensors'] // f'&{sname},'
                         c.sensors // f'&{sname},'
-                        c[sname] = S(
-                            f'SENSOR {sname} = {{', '};') // f'.name = "{sname}",'; c // c[sname]
+                        c[sname] = S(f'SENSOR {sname} = {{', '};') \
+                            // f'.name = "{sname}",'; c // c[sname]
                         c[sname] // f'.src = {udp(s["src"])},'
                         c[sname] // f'.dst = {udp(s["dst"])},'
                         c[sname] // f'.sn = {int(s["sn"])},'
@@ -143,11 +118,11 @@ def config_json(jsn, cpp, hpp):
                         size = os.path.getsize(s["dataPath"])
                         c[sname] // f'.size = {size},'
                         c[sname] // f'.packetSize = {g["packetSize"]},'
-                        c[sname] // f'.packets = {size//g["packetSize"]},'
+                        c[sname] // f'.packets = {size // g["packetSize"]},'
 
 if __name__ == "__main__":
     jsn, cpp, hpp = sys.argv[1:3 + 1]
     match jsn:
         case 'etc/config.json': config_json(jsn, cpp, hpp)
-        case 'etc/rift_cfg_631.json': riftek_cfg(jsn, cpp, hpp, model=631)
+        # case 'etc/rift_cfg_631.json': riftek_cfg(jsn, cpp, hpp, model=631)
         case _: raise NameError(jsn)

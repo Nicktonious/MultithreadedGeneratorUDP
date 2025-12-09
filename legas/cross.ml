@@ -1,0 +1,2 @@
+(* multiplatform & cross-compiler setup *)
+

@@ -1,0 +1,2 @@
+# fan-out
+## [[messaging patterns]]

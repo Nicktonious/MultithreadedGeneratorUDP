@@ -1,11 +1,12 @@
-PROJECT_NAME           = "MultithreadedGeneratorUDP"
-PROJECT_BRIEF          = "генератор высокоскоростного UDP-трафика"
+
+PROJECT_NAME           = "zmq"
+PROJECT_BRIEF          = "cppzmq + pcpp (DPDK)"
 PROJECT_LOGO           = doc/logo.png
 LAYOUT_FILE            = doc/DoxygenLayout.xml
 OUTPUT_DIRECTORY       = doc
 HTML_OUTPUT            = html
 INPUT                  = README.md doc inc src
-# INPUT                 += hw cpu arch os
+INPUT                 += hw cpu arch os
 INCLUDE_PATH           = inc
 EXCLUDE                = ref/* lib/python* *.pdf *.djvu
 WARN_IF_UNDOCUMENTED   = NO

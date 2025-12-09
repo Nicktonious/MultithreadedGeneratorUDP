@@ -1,0 +1,83 @@
+#!/bin/sh
+
+export APP=horizon
+export R=ref/HorizonPLC
+export Z=legas/legas.rc
+
+find $R -type d -maxdepth 1 >> $Z
+
+mkdir js
+mkdir test
+mkdir res
+
+touch js/.gitignore
+touch test/.gitignore
+touch res/.gitignore
+
+ls ~/em/CMake* >> $Z
+
+touch CMakeLists.txt
+touch CMakePresets.json
+
+mkdir {lib,inc,src}
+touch {lib,inc,src}/.gitignore
+
+touch lib/$APP.ini
+touch inc/{$APP,main,watch,vm,libc,syntax}.hpp
+touch src/{$APP,main,watch,vm}.cpp
+touch src/$APP.{lex,yacc}
+touch src/{dec,hex,oct,bin,num}.ragel
+touch inc/num.hpp
+
+find ~/em/cmake >> $Z
+
+mkdir cmake
+touch cmake/avr-none.cmake
+touch cmake/wasm.cmake
+touch cmake/aarch64-linux-gnu.cmake
+touch cmake/syntax.cmake
+touch cmake/espruino.cmake
+touch cmake/i686-w64-mingw32.cmake
+touch cmake/version.cmake
+touch cmake/any_toolchain.cmake
+touch cmake/xtensa-lx106-elf.cmake
+touch cmake/install.cmake
+touch cmake/json2cpp.cmake
+touch cmake/armv7-linux-gnu.cmake
+touch cmake/cross.cmake
+touch cmake/FindRAGEL.cmake
+touch cmake/arm-none-eabi.cmake
+touch cmake/fw.cmake
+touch cmake/bytecode.cmake
+touch cmake/FindREADLINE.cmake
+touch cmake/.gitignore
+touch cmake/clean.cmake
+touch cmake/src.cmake
+touch cmake/x86_64-linux-gnu.cmake
+
+mkdir {hw,cpu,arch,os}
+touch {hw,cpu,arch,os}/.gitignore
+mkdir {hw,cpu,arch,os}/{inc,src}
+touch {hw,cpu,arch,os}/{inc,src}/.gitignore
+
+mkdir hw/pc
+mkdir cpu/i5
+mkdir arch/x86_64
+mkdir os/linux
+touch hw/pc/.gitignore
+touch cpu/i5/.gitignore
+touch arch/x86_64/.gitignore
+touch os/linux/.gitignore
+touch hw/pc/pc.{mk,cmake}
+touch cpu/i5/i5.{mk,cmake}
+touch arch/x86_64/x86_64.{mk,cmake}
+touch os/linux/linux.{mk,cmake}
+
+mkdir hw/pc/{inc,src}
+mkdir cpu/i5/{inc,src}
+mkdir arch/x86_64/{inc,src}
+mkdir os/linux/{inc,src}
+touch hw/pc/{inc,src}/.gitignore
+touch cpu/i5/{inc,src}/.gitignore
+touch arch/x86_64/{inc,src}/.gitignore
+touch os/linux/{inc,src}/.gitignore
