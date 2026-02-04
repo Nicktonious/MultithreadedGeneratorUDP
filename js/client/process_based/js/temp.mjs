@@ -1,5 +1,4 @@
-import { exec, execSync, fork, spawn } from 'node:child_process';
-import setQlen from './setqlen.mjs';
+import { exec, execSync, fork } from 'node:child_process';
 import ZMQPublisher from './ClassZMQServer.mjs';
 import parseArgs from './argsParser.mjs';
 import { StartZMQGen, StopZMQGen } from './ClockGenWrapper.mjs';
@@ -9,23 +8,35 @@ import createConfiguration from './createTempConf.mjs';
 import { loadConfig } from './configParser.mjs';
 import { StatsReceiver } from './Stats.mjs';
 import DataAsm from './ClassDataAsm.mjs';
+import DataProvider from './ClassDataProvider.mjs';
 
 const GB_in_bytes = 1_073_741_824;
+
+function getSocketsInfo({ n, srcIp, portBase, endPort, totalBufferSize }) {
+    return Array(n).fill().map((_, i) => ({
+        port: portBase + i % (endPort - portBase + 1),
+        srcIp: incrementIp(srcIp, i),
+        portBase,
+        socketIndex: i,
+        bufferSize: Math.floor(totalBufferSize / n)
+    }));
+}
 
 async function main() {
     const args = parseArgs(process.argv.slice(2));
     const { dstIp, n, totalBufferSize, srcIp,
         portBase, packetSize, baseCPUIndex,
-        freq, spp, infoCh, endPort, time } = args;
-
+        freq, spp, infoCh, endPort, time, config: configPath } = args;
+    
     console.log(`Starting client with:
     - Server: ${dstIp}
     - Total SendBufferSize: ${(totalBufferSize / GB_in_bytes).toFixed(2)} GB
     - Sockets: ${n}
     - Packet size: ${(packetSize / 1024).toFixed(2)} KB`);
 
-    const conf = createConfiguration(args);
+    const conf = configPath ? loadConfig(configPath) : createConfiguration(args);
 
+    const dataProvider = new DataProvider(conf);
     // const socketInfoList = getSocketsInfo(args);
 
     const childSenders = [];
@@ -36,7 +47,9 @@ async function main() {
     for (let group of conf.groups) {
         let sensors = group.sensors.map((s, i) => Object.assign(s, {
             socketIndex: i,
-            bufferSize: Math.floor(totalBufferSize / n)
+            bufferSize: Math.floor(totalBufferSize / n),
+            path: dataProvider.ExtractZipArchive(group.filesPath),
+            packetSize: group.packetSize,
         }));
 
         for (let i = 0; sensors.length > 0; i++) {
@@ -44,34 +57,25 @@ async function main() {
                 groupName: group.name,
                 packetSize: group.packetSize,
                 sensors: sensors.splice(0, spp),
-                baseCPUIndex: n/spp,
+                baseCPUIndex: 0,
                 threadIndex: i
             }
-
+            
             /*childAsms.push(
-                spawn('./build/dasm', [JSON.stringify(args)], {
-                    stdio: ['inherit', 'pipe', 'pipe', 'ipc']
+                fork('./js/client/process_based/js/childProcessASM.mjs', [JSON.stringify(args)], {
+                    stdio: ['inherit', 'inherit', 'inherit', 'ipc']
                 })
-            );*/
-            args.baseCPUIndex = 0;
+            );
+            args.baseCPUIndex = 0;*/
+            
             childSenders.push(
-                spawn('./build/udp_sender', [JSON.stringify(args)], {
-                    stdio: ['inherit', 'pipe', 'pipe', 'ipc']
+                fork('./js/client/process_based/js/childProcess.mjs', [JSON.stringify(args)], {
+                    stdio: ['inherit', 'inherit', 'inherit', 'ipc']
                 })
             );
         }
     }
-    childSenders.forEach(child => {
-        child.stdout.on('data', (data) => {
-            console.log(`[C++ STDOUT] ${data.toString().trim()}`);
-        });
-
-        // Обработка stderr
-        child.stderr.on('data', (data) => {
-            console.error(`[C++ STDERR] ${data.toString().trim()}`);
-        });
-    });
-    // const stats = new StatsReceiver(childSenders).Start();
+    const stats = new StatsReceiver(childSenders).Start();
 
     taskset(baseCPUIndex, true);
     console.log(`Main Process ${process.pid} running on Core ${baseCPUIndex}`);
@@ -107,13 +111,13 @@ async function main() {
                 } catch (err) { }
             });
 
-            /*const tx_stats = await stats.GetStats();
+            const tx_stats = await stats.GetStats();
             const tx_sent = tx_stats.reduce((p, c) => p + c, 0);
             console.log(`Sent ${tx_sent} packets`);
-            console.log(`Stats: ${stats.packets}\ntotal: ${tx_sent}`);*/
+            console.log(`Stats: ${stats.packets}\ntotal: ${tx_sent}`);
 
             if (ctrlCh) try {
-                ctrlCh.Packets(/*tx_sent*/0);
+                ctrlCh.Packets(tx_sent);
                 await ctrlCh.Stop();
                 ctrlCh.Close();
             } catch {

@@ -48,7 +48,7 @@ class StatsReceiver extends EventEmitter {
         return this;
     }
     async GetStats() {
-        
+        return 0;
         return new Promise((res, rej) => {
             if (this.#PacketsReady()) res(this.packets.map(p => p));
             this.once('statsReady', () => {
@@ -59,4 +59,4 @@ class StatsReceiver extends EventEmitter {
     }
 }
 
-export { StatsSender, StatsReceiver }
+export { StatsReceiver }
