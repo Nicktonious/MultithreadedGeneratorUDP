@@ -1,0 +1,34 @@
+cmake_minimum_required(VERSION 3.12)
+project(udp_sender)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Поиск необходимых библиотек
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(ZeroMQ REQUIRED libzmq)
+pkg_check_modules(JSONCPP REQUIRED jsoncpp)
+
+# Добавляем include директории
+include_directories(${ZeroMQ_INCLUDE_DIRS} ${JSONCPP_INCLUDE_DIRS})
+include_directories(${CMAKE_SOURCE_DIR})
+
+# Настройка флагов компиляции
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+
+# Создаем исполняемый файл
+add_executable(udp_sender
+    main.cpp
+    sender.cpp
+    socket_client.cpp
+)
+
+# Линковка библиотек
+target_link_libraries(udp_sender
+    ${ZeroMQ_LIBRARIES}
+    ${JSONCPP_LIBRARIES}
+    pthread
+)
+
+# Установка целевого файла
+install(TARGETS udp_sender DESTINATION bin)

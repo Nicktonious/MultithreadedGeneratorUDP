@@ -2,7 +2,7 @@ import json
 import sys
 import argparse
 from validator import validate_config
-from dataLoader import load_bin_files_from_zip
+from py.trex_based.py.data_loader import load_bin_files_from_zip
 def load_config_to_dict(file_path):
     """Загружает JSON-конфиг из файла и возвращает словарь"""
     try:

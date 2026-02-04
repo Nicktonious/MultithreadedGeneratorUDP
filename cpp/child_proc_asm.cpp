@@ -1,3 +1,5 @@
+#include "data_asm.h"
+#include "work_args.h"
 #include <iostream>
 #include <thread>
 #include <vector>
@@ -5,18 +7,17 @@
 #include <sstream>
 #include <cstdlib>
 #include <json/json.h>
-#include "sender.h"
 #include <pthread.h>
 #include <sched.h>
-#include "work_args.h"
+
 
 // Глобальный указатель для доступа к sender из обработчика сигнала
-static Sender* globalSender = nullptr;
+static DataAsm* globalDasm = nullptr;
 
 // Обработчик сигнала SIGINT
 void signalHandler(int signal) {
-    if (globalSender && signal == SIGINT) {
-        std::cout << getpid() << ": Sent " << globalSender->getMessageCount() << std::endl;
+    if (globalDasm && signal == SIGINT) {
+        // std::cout << getpid() << ": Sent " << globalSender->getMessageCount() << std::endl;
         exit(0);
     }
 }
@@ -40,6 +41,7 @@ WorkArgs parseWorkerData(const std::string& jsonStr) {
     
     if (Json::parseFromStream(reader, ss, &root, &errors)) {
         args.groupName = root["groupName"].asString();
+        args.packetSize = root["packetSize"].asInt();
         args.baseCPUIndex = root["baseCPUIndex"].asInt();
         args.threadIndex = root["threadIndex"].asInt();
         
@@ -51,8 +53,6 @@ WorkArgs parseWorkerData(const std::string& jsonStr) {
             opts.dst = sensor["dst"].asString();
             opts.socketIndex = sensor["socketIndex"].asInt();
             opts.bufferSize = sensor["bufferSize"].asInt();
-            args.packetSize = sensor["packetSize"].asInt();
-            args.dataPath = sensor["dataPath"].asInt();
             args.sensors.push_back(opts);
         }
     }
@@ -60,7 +60,7 @@ WorkArgs parseWorkerData(const std::string& jsonStr) {
     return args;
 }
 
-int  main(int argc, char* argv[]) {
+int main(int argc, char* argv[]) {
     if (argc < 2) {
         std::cerr << "Usage: " << argv[0] << " <json_worker_data>" << std::endl;
         return 1;
@@ -71,14 +71,14 @@ int  main(int argc, char* argv[]) {
     int cpu = workerData.baseCPUIndex + ((workerData.threadIndex + 1) % std::thread::hardware_concurrency());
     setCPUAffinity(cpu);
     
-    Sender sender(workerData, 
+    DataAsm dasm(workerData, 
                 "ipc:///tmp/zmq_clock.ipc", 
-                "ipc:///tmp/zmq_data_" + std::to_string(workerData.threadIndex) + ".ipc");
+                "zmq_data_" + std::to_string(workerData.threadIndex) + ".ipc");
     
     std::cout << "Process " << getpid() << " running on Core " << cpu 
-            << ", " << workerData.sensors.size() << " sockets" << std::endl;
+            << ", preparing data for " << workerData.sensors.size() << " sockets" << std::endl;
     
-    globalSender = &sender;
+    globalDasm = &dasm;
     signal(SIGINT, signalHandler);
 
             /*signal(SIGINT, [&](int) {
@@ -86,8 +86,8 @@ int  main(int argc, char* argv[]) {
         exit(0);
     });*/
     
-    std::cout << getpid() << " - RunBrokerSpeed()" << std::endl;
-    sender.runBrokerSpeed();
+    dasm.Init();
+    dasm.Run(workerData.packetSize);
     
     return 0;
 }

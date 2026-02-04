@@ -8,11 +8,12 @@ struct SensorOpts {
     std::string dst;
     int socketIndex;
     int bufferSize;
+    int packetSize;
+    std::string dataPath;
 };
 
 struct WorkArgs {
     std::string groupName;
-    int packetSize;
     std::vector<SensorOpts> sensors;
     int baseCPUIndex;
     int threadIndex;
